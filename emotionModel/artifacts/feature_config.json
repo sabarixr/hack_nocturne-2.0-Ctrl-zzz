@@ -1,0 +1,19 @@
+{
+  "center_index": 1,
+  "engineered_feature_names": [
+    "left_eyebrow_raise",
+    "right_eyebrow_raise",
+    "brow_raise_asymmetry",
+    "left_eye_openness",
+    "right_eye_openness",
+    "eye_openness_asymmetry",
+    "mouth_openness",
+    "lip_corner_width",
+    "left_lip_corner_offset_x",
+    "right_lip_corner_offset_x",
+    "lip_corner_asymmetry",
+    "left_eyebrow_slope",
+    "right_eyebrow_slope"
+  ],
+  "include_engineered": true
+}

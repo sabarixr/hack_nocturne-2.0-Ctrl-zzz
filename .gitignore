@@ -1,0 +1,16 @@
+*venv/
+*AffectNet/
+*RAF-DB/
+*SFEW/
+*__pycache__/
+*data/
+emotionModel/artifacts/cache/
+
+*.dat
+*.npy
+*.npz
+*.keras
+
+emotionModel/artifacts/history.json
+emotionModel/artifacts/metrics.json
+emotionModel/artifacts/training_config.json
