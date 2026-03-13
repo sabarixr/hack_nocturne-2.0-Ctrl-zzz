@@ -1,0 +1,12 @@
+source_checkpoint: checkpoints\best_model.pt
+epoch: 28
+metrics: {'val_loss': 0.17512403130531312}
+feature_input_dim: 126
+bilstm_hidden_dim: 256
+bilstm_num_layers: 2
+embedding_dim: 512
+num_classes: 8
+gesture_classes: ['accident', 'call', 'doctor', 'help', 'hot', 'lose', 'pain', 'thief']
+
+NOTE: These weight files are for Python-based workflows.
+For Flutter integration, use export_mobile.py instead.
