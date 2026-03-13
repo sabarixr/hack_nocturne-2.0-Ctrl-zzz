@@ -29,5 +29,5 @@ sign_recognition/models/flutter_export/*.onnx.data
 sign_recognition/models/flutter_export/*.ptl
 sign_recognition/models/flutter_export/*_traced.pt
 sign_recognition/models/trained_weights/*.pt
-sign_recognition/training_curves.png
+
 sign_recognition/training_log.csv
