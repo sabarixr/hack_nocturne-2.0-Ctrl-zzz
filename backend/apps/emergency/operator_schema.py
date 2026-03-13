@@ -15,6 +15,29 @@ from apps.emergency.models import (
 from shared.auth import IsAuthenticated, IsOperator
 from shared.redis_layer import channel_group_send, emergency_group
 
+from django.conf import settings
+from twilio.rest import Client
+import logging
+from asgiref.sync import sync_to_async
+
+logger = logging.getLogger(__name__)
+
+def trigger_twilio_flow(to_number: str):
+    try:
+        if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_FLOW_SID:
+            logger.warning("Twilio credentials or Flow SID not set")
+            return
+            
+        client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+        execution = client.studio.v2.flows(settings.TWILIO_FLOW_SID).executions.create(
+            to=to_number,
+            from_=settings.TWILIO_FROM_NUMBER
+        )
+        logger.info(f"Triggered Twilio flow execution {execution.sid}")
+    except Exception as e:
+        logger.error(f"Failed to trigger Twilio flow: {e}")
+
+
 
 @strawberry.input
 class SendOperatorMessageInput:
@@ -180,12 +203,16 @@ class OperatorMutation:
     async def create_dispatch_event(
         self, info: Info, input: DispatchInput
     ) -> "DispatchEventOut":
-        call = await EmergencyCall.objects.aget(id=input.call_id)
+        call = await EmergencyCall.objects.select_related("user").aget(id=input.call_id)
         event = await DispatchEvent.objects.acreate(
             call=call,
             dispatch_type=input.dispatch_type,
             eta_seconds=input.eta_seconds,
         )
+        
+        # Trigger Twilio Studio Flow
+        phone_number = call.user.phone if call.user and call.user.phone else "+919876543210"
+        await sync_to_async(trigger_twilio_flow)(phone_number)
         await channel_group_send(
             emergency_group(str(call.id)),
             {
