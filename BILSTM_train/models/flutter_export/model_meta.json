@@ -1,0 +1,61 @@
+{
+  "model_format": "tflite",
+  "model_file": "sign_language_model.tflite",
+  "architecture": "BiLSTMAttention",
+  "input_shape": [
+    1,
+    30,
+    126
+  ],
+  "input_description": "Sequence of 30 frames of MediaPipe hand landmarks. Shape: [1, 30, 126]. Each frame has 126 features: 21 landmarks x 3 coords x 2 hands. Normalization: wrist-centered + scaled by max pairwise distance per hand. Zero-pad second hand if only one hand detected.",
+  "output_shape": [
+    1,
+    8
+  ],
+  "output_description": "Raw logits for each gesture class. Apply softmax to get probabilities. Use argmax to get predicted class index.",
+  "classes": [
+    "accident",
+    "call",
+    "doctor",
+    "help",
+    "hot",
+    "lose",
+    "pain",
+    "thief"
+  ],
+  "num_classes": 8,
+  "class_index_map": {
+    "0": "accident",
+    "1": "call",
+    "2": "doctor",
+    "3": "help",
+    "4": "hot",
+    "5": "lose",
+    "6": "pain",
+    "7": "thief"
+  },
+  "preprocessing": {
+    "hand_detection": "MediaPipe HandLandmarker",
+    "num_hands": 2,
+    "landmarks_per_hand": 21,
+    "landmark_dimensions": 3,
+    "feature_dim": 126,
+    "sequence_length": 30,
+    "normalization": "wrist-centered + scale by max landmark distance",
+    "missing_hand": "zero-pad to 63 dims",
+    "hand_ordering": "sorted by wrist x-coordinate (left first)"
+  },
+  "training": {
+    "val_accuracy": 0.9861
+  },
+  "export": {
+    "quantized": false,
+    "precision": "float32",
+    "file_size_mb": 0.91,
+    "total_parameters": 142436
+  },
+  "flutter_integration": {
+    "package": "tflite_flutter: ^0.10.4",
+    "usage": "final interpreter = await Interpreter.fromAsset('sign_language_model.tflite');\nvar input = [landmarks]; // shape [1, 30, 126]\nvar output = List.filled(1 * 8, 0.0).reshape([1, 8]);\ninterpreter.run(input, output);\n// Apply softmax to output[0] to get probabilities"
+  }
+}
