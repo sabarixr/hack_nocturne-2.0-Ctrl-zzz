@@ -1,12 +1,22 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, use, useEffect, useRef } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation, useSubscription } from "@apollo/client/react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Send, Siren, MapPin, Activity, AlertCircle } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import {
+  ArrowLeft,
+  Send,
+  Siren,
+  MapPin,
+  Activity,
+  AlertCircle,
+  PhoneOff,
+} from "lucide-react";
 import clsx from "clsx";
 
+/* ── GraphQL ──────────────────────────────────────────── */
 const CALL_DETAIL = gql`
   query GetCallDetail($callId: ID!) {
     operatorCallDetail(callId: $callId) {
@@ -22,11 +32,23 @@ const CALL_DETAIL = gql`
       callerPhone
       hasOperator
     }
-    callFrames(callId: $callId) {
+    operatorCallFrames(callId: $callId) {
       id
       recognizedSigns
       urgencyScore
+      emotionAngry
+      emotionSad
+      emotionNeutral
+      emotionHappy
+      emotionSurprise
+      emotionAfraid
+      emotionDisgust
       recordedAt
+    }
+    operatorMessages(callId: $callId) {
+      id
+      text
+      sentAt
     }
   }
 `;
@@ -71,164 +93,495 @@ const DISPATCH = gql`
   }
 `;
 
-export default function CallHandlingPage({ params }: { params: Promise<{ id: string }> }) {
+const END_CALL = gql`
+  mutation EndCall($callId: ID!, $outcome: String!) {
+    operatorEndCall(callId: $callId, outcome: $outcome) {
+      id
+      status
+    }
+  }
+`;
+
+/* ── Helpers ──────────────────────────────────────────── */
+const EMOTIONS: { key: string; label: string; color: string }[] = [
+  { key: "emotionAngry",   label: "Angry",    color: "#ef4444" },
+  { key: "emotionAfraid",  label: "Afraid",   color: "#a855f7" },
+  { key: "emotionSad",     label: "Sad",      color: "#3b82f6" },
+  { key: "emotionDisgust", label: "Disgust",  color: "#22c55e" },
+  { key: "emotionSurprise",label: "Surprise", color: "#f59e0b" },
+  { key: "emotionNeutral", label: "Neutral",  color: "#6b7280" },
+  { key: "emotionHappy",   label: "Happy",    color: "#10b981" },
+];
+
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/* ── Page ─────────────────────────────────────────────── */
+export default function CallHandlingPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const router = useRouter();
+  const { token } = useAuth();
   const { id } = use(params);
   const [msgText, setMsgText] = useState("");
-  const [messages, setMessages] = useState<Record<string, unknown>[]>([]);
+  const [messages, setMessages] = useState<Record<string, any>[]>([]);
+  const [dispatchedTypes, setDispatchedTypes] = useState<Set<string>>(new Set());
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // Auth guard
+  useEffect(() => {
+    if (token === null) router.push("/login");
+  }, [token, router]);
 
   const { data, loading } = useQuery<any>(CALL_DETAIL, {
     variables: { callId: id },
     pollInterval: 5000,
+    skip: !token,
+    onCompleted: (fetchedData) => {
+      if (fetchedData?.operatorMessages) {
+        setMessages((prev) => (prev.length === 0 ? fetchedData.operatorMessages : prev));
+      }
+    },
   });
 
-  useSubscription(CALL_SUB, { variables: { callId: id } });
+  useSubscription(CALL_SUB, { variables: { callId: id }, skip: !token });
 
   useSubscription(MSG_SUB, {
     variables: { callId: id },
+    skip: !token,
     onData: ({ data: subData }: { data: any }) => {
-      const newMsg = subData.data.operatorMessageReceived;
-      setMessages((prev) => [...prev, newMsg]);
+      const newMsg = subData.data?.operatorMessageReceived;
+      if (newMsg) setMessages((prev) => [...prev, newMsg]);
     },
   });
 
   const [sendMsg, { loading: sending }] = useMutation(SEND_MSG);
   const [dispatchEvent] = useMutation(DISPATCH);
+  const [endCall] = useMutation(END_CALL);
+
+  // Auto-scroll chat
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  if (token === null) return null;
+  if (loading && !data) return <FullPageLoader />;
+  if (!data?.operatorCallDetail) return <FullPageError onBack={() => router.push("/dashboard")} />;
+
+  const call = data.operatorCallDetail;
+  const frames: Record<string, any>[] = data.operatorCallFrames || [];
+  const latestFrame = frames.length > 0 ? frames[frames.length - 1] : null;
+
+  const allSigns: string[] = frames
+    .flatMap((f) => f.recognizedSigns as string[])
+    .slice(-30);
+
+  const isCritical = call.peakUrgencyScore >= 0.75;
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (!msgText.trim()) return;
     sendMsg({ variables: { callId: id, text: msgText } });
+    // Optimistic update
+    setMessages((prev) => [
+      ...prev,
+      { id: `opt-${Date.now()}`, text: msgText, sentAt: new Date().toISOString() },
+    ]);
     setMsgText("");
   };
 
-  if (loading && !data) return <div className="p-8">Loading...</div>;
-  if (!data?.operatorCallDetail) return <div className="p-8">Call not found</div>;
+  const handleDispatch = (type: string) => {
+    dispatchEvent({ variables: { callId: id, type } });
+    setDispatchedTypes((prev) => new Set(prev).add(type));
+  };
 
-  const call = data.operatorCallDetail;
-  const frames = data.callFrames || [];
-  
-  // Aggregate recent signs
-  const allSigns = frames.flatMap((f: Record<string, unknown>) => f.recognizedSigns as string[]).slice(-20);
+  const handleEndCall = () => {
+    if (confirm("End this call and mark as RESOLVED?")) {
+      endCall({ variables: { callId: id, outcome: "RESOLVED" } }).then(() => {
+        router.push("/dashboard");
+      });
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      <div className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm z-10 relative">
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "var(--bg)" }}
+    >
+      {/* ── Top bar ─────────────────────── */}
+      <header
+        className="glass sticky top-0 z-20 flex items-center justify-between px-6 py-3"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
         <div className="flex items-center gap-4">
-          <button onClick={() => router.push("/dashboard")} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <ArrowLeft className="w-5 h-5" />
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: "var(--text-secondary)", background: "transparent" }}
+            onMouseOver={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.06)")}
+            onMouseOut={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+          >
+            <ArrowLeft size={18} />
           </button>
+
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              {call.callerName}
-              <span className={clsx(
-                "text-xs px-2 py-1 rounded-full ml-2 uppercase font-bold",
-                call.peakUrgencyScore >= 0.75 ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"
-              )}>
+            <div className="flex items-center gap-2">
+              <h1 className="font-bold text-base" style={{ color: "var(--text-primary)" }}>
+                {call.callerName}
+              </h1>
+              <span
+                className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide"
+                style={{
+                  background: isCritical ? "var(--critical-dim)" : "var(--brand-dim)",
+                  color: isCritical ? "var(--critical)" : "var(--brand)",
+                }}
+              >
                 {call.emergencyType}
               </span>
-            </h1>
-            <p className="text-sm text-slate-500">{call.callerPhone}</p>
+              {isCritical && (
+                <span
+                  className="relative w-2 h-2 rounded-full ping-dot"
+                  style={{ background: "var(--critical)", display: "inline-block" }}
+                />
+              )}
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {call.callerPhone} · Started {formatTime(call.startedAt)}
+            </p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={() => dispatchEvent({ variables: { callId: id, type: "AMBULANCE" } })} className="bg-amber-100 hover:bg-amber-200 text-amber-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
-            <Siren className="w-4 h-4" /> Dispatch Ambulance
-          </button>
-          <button onClick={() => dispatchEvent({ variables: { callId: id, type: "POLICE" } })} className="bg-blue-100 hover:bg-blue-200 text-blue-800 px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-colors">
-            <Siren className="w-4 h-4" /> Dispatch Police
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          <DispatchButton
+            label="Ambulance"
+            dispatched={dispatchedTypes.has("AMBULANCE")}
+            color="#f59e0b"
+            dimColor="rgba(245,158,11,0.1)"
+            onClick={() => handleDispatch("AMBULANCE")}
+          />
+          <DispatchButton
+            label="Police"
+            dispatched={dispatchedTypes.has("POLICE")}
+            color="#3b82f6"
+            dimColor="rgba(59,130,246,0.1)"
+            onClick={() => handleDispatch("POLICE")}
+          />
+          <DispatchButton
+            label="Fire"
+            dispatched={dispatchedTypes.has("FIRE")}
+            color="#ef4444"
+            dimColor="rgba(239,68,68,0.1)"
+            onClick={() => handleDispatch("FIRE")}
+          />
+          <button
+            onClick={handleEndCall}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ml-2"
+            style={{
+              background: "var(--critical-dim)",
+              border: "1px solid rgba(239,68,68,0.3)",
+              color: "var(--critical)",
+            }}
+            onMouseOver={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "rgba(239,68,68,0.2)")}
+            onMouseOut={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--critical-dim)")}
+          >
+            <PhoneOff size={14} />
+            End Call
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Column: Context */}
-        <div className="w-1/3 border-r bg-white overflow-y-auto p-6 flex flex-col gap-6">
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2 mb-3">
-              <Activity className="w-4 h-4" /> Live Status
-            </h3>
-            <div className="space-y-4">
+      {/* ── Body ─────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
+        {/* Left sidebar */}
+        <aside
+          className="w-80 shrink-0 flex flex-col overflow-y-auto"
+          style={{ background: "var(--surface-1)", borderRight: "1px solid var(--border)" }}
+        >
+          {/* Urgency */}
+          <div className="p-5 animate-slide-left delay-0">
+            <SectionHeader icon={<Activity size={13} />} label="Live Status" />
+            <div className="mt-3 space-y-3">
               <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="font-medium">Urgency Level</span>
-                  <span className="font-mono">{(call.peakUrgencyScore * 100).toFixed(0)}%</span>
+                <div className="flex justify-between text-xs mb-1.5" style={{ color: "var(--text-secondary)" }}>
+                  <span>Urgency Level</span>
+                  <span className="font-mono font-bold" style={{ color: isCritical ? "var(--critical)" : "var(--brand)" }}>
+                    {(call.peakUrgencyScore * 100).toFixed(0)}%
+                  </span>
                 </div>
-                <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div 
-                    className={clsx("h-full", call.peakUrgencyScore >= 0.75 ? "bg-red-500" : "bg-blue-500")}
-                    style={{ width: `${call.peakUrgencyScore * 100}%` }}
+                <div
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "rgba(255,255,255,0.06)" }}
+                >
+                  <div
+                    className="h-full rounded-full animate-bar-fill"
+                    style={{
+                      width: `${call.peakUrgencyScore * 100}%`,
+                      background: isCritical
+                        ? "linear-gradient(90deg, #ef4444, #f97316)"
+                        : "linear-gradient(90deg, #3b82f6, #6366f1)",
+                    }}
                   />
                 </div>
               </div>
-              <div className="flex items-start gap-2 text-sm text-slate-700">
-                <MapPin className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
-                <p>{call.address || "Location tracking active..."}</p>
+
+              <div
+                className="flex items-start gap-2 text-xs py-2 px-3 rounded-xl"
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--border)" }}
+              >
+                <MapPin size={12} style={{ color: "var(--text-muted)", marginTop: 2, flexShrink: 0 }} />
+                <p style={{ color: "var(--text-secondary)" }}>
+                  {call.address || "Location tracking active…"}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex-1 border rounded-xl overflow-hidden flex flex-col">
-            <div className="bg-slate-50 p-3 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide flex items-center gap-2">
-                <AlertCircle className="w-4 h-4" /> Recognized Signs
-              </h3>
+          <div
+            className="mx-5"
+            style={{ height: 1, background: "var(--border)" }}
+          />
+
+          {/* Emotion bars */}
+          <div className="p-5 animate-slide-left delay-1">
+            <SectionHeader icon={<AlertCircle size={13} />} label="Patient State" />
+            <div className="mt-3 space-y-2.5">
+              {EMOTIONS.map((em, i) => {
+                const val: number = latestFrame?.[em.key] ?? 0;
+                return (
+                  <div key={em.key} className={`animate-fade-up delay-${i}`}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span style={{ color: "var(--text-secondary)" }}>{em.label}</span>
+                      <span className="font-mono text-xs" style={{ color: em.color, opacity: 0.8 }}>
+                        {(val * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div
+                      className="h-1 rounded-full overflow-hidden"
+                      style={{ background: "rgba(255,255,255,0.05)" }}
+                    >
+                      <div
+                        className="h-full rounded-full animate-bar-fill"
+                        style={{ width: `${val * 100}%`, background: em.color, opacity: 0.85 }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="p-4 flex-1 overflow-y-auto bg-white flex flex-wrap content-start gap-2">
+          </div>
+
+          <div
+            className="mx-5"
+            style={{ height: 1, background: "var(--border)" }}
+          />
+
+          {/* Signs */}
+          <div className="p-5 flex-1 animate-slide-left delay-2">
+            <SectionHeader icon={<AlertCircle size={13} />} label="Recognised Signs" />
+            <div className="mt-3 flex flex-wrap gap-1.5">
               {allSigns.length === 0 ? (
-                <p className="text-slate-400 text-sm text-center w-full py-4">No signs detected yet.</p>
+                <p className="text-xs w-full text-center py-6" style={{ color: "var(--text-muted)" }}>
+                  No signs detected yet
+                </p>
               ) : (
-                allSigns.map((sign: string, i: number) => (
-                  <span key={i} className="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium">
+                allSigns.map((sign, i) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium animate-scale-in"
+                    style={{
+                      background: "rgba(59,130,246,0.08)",
+                      border: "1px solid rgba(59,130,246,0.18)",
+                      color: "var(--brand)",
+                      animationDelay: `${i * 30}ms`,
+                    }}
+                  >
                     {sign}
                   </span>
                 ))
               )}
             </div>
           </div>
-        </div>
+        </aside>
 
-        {/* Right Column: Chat */}
-        <div className="flex-1 flex flex-col bg-slate-50">
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div className="text-center">
-              <span className="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full font-medium">
-                Call started {new Date(call.startedAt).toLocaleTimeString()}
+        {/* Chat panel */}
+        <div
+          className="flex-1 flex flex-col"
+          style={{ background: "var(--surface-2)", minWidth: 0 }}
+        >
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-3">
+            <div className="flex justify-center">
+              <span
+                className="px-3 py-1 rounded-full text-xs font-medium"
+                style={{
+                  background: "rgba(255,255,255,0.05)",
+                  color: "var(--text-muted)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                Call started {formatTime(call.startedAt)}
               </span>
             </div>
-            
+
+            {messages.length === 0 && (
+              <p className="text-center text-xs py-8" style={{ color: "var(--text-muted)" }}>
+                No messages yet — type below to send a sign language prompt
+              </p>
+            )}
+
             {messages.map((m, i) => (
-              <div key={i} className="flex flex-col items-end">
-                <div className="bg-blue-600 text-white rounded-2xl rounded-tr-sm px-5 py-3 max-w-[80%] shadow-sm">
+              <div
+                key={m.id || i}
+                className="flex flex-col items-end animate-msg-pop"
+                style={{ animationDelay: `${i * 20}ms` }}
+              >
+                <div
+                  className="px-4 py-2.5 rounded-2xl rounded-tr-sm max-w-[75%] text-sm"
+                  style={{
+                    background: "var(--brand)",
+                    color: "#fff",
+                    boxShadow: "0 2px 12px rgba(59,130,246,0.25)",
+                  }}
+                >
                   {m.text as string}
                 </div>
-                <span className="text-xs text-slate-400 mt-1 mr-1">
-                  {new Date(m.sentAt as string).toLocaleTimeString()}
+                <span className="text-xs mt-1 mr-1" style={{ color: "var(--text-muted)" }}>
+                  {formatTime(m.sentAt as string)}
                 </span>
               </div>
             ))}
+
+            <div ref={chatBottomRef} />
           </div>
-          
-          <div className="p-4 bg-white border-t border-slate-200">
-            <form onSubmit={handleSend} className="flex gap-3">
+
+          {/* Input bar */}
+          <div
+            className="px-6 py-4"
+            style={{ borderTop: "1px solid var(--border)", background: "var(--surface-1)" }}
+          >
+            <form onSubmit={handleSend} className="flex gap-3 items-center">
               <input
                 type="text"
                 value={msgText}
                 onChange={(e) => setMsgText(e.target.value)}
-                placeholder="Type message to convert to sign language avatar..."
-                className="flex-1 border border-slate-300 rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Type a message to display as sign language…"
+                className="flex-1 rounded-2xl px-5 py-3 text-sm outline-none transition-all"
+                style={{
+                  background: "rgba(255,255,255,0.04)",
+                  border: "1px solid var(--border-bright)",
+                  color: "var(--text-primary)",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--brand)";
+                  e.currentTarget.style.boxShadow = "0 0 0 3px var(--brand-dim)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border-bright)";
+                  e.currentTarget.style.boxShadow = "none";
+                }}
               />
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 disabled={sending || !msgText.trim()}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white w-12 h-12 rounded-full flex items-center justify-center transition-colors shadow-sm"
+                className="w-11 h-11 rounded-2xl flex items-center justify-center transition-all shrink-0"
+                style={{
+                  background: sending || !msgText.trim() ? "rgba(59,130,246,0.3)" : "var(--brand)",
+                  color: "#fff",
+                  cursor: sending || !msgText.trim() ? "not-allowed" : "pointer",
+                  boxShadow: sending || !msgText.trim() ? "none" : "0 4px 16px rgba(59,130,246,0.35)",
+                }}
               >
-                <Send className="w-5 h-5 ml-1" />
+                <Send size={16} style={{ marginLeft: 2 }} />
               </button>
             </form>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Sub-components ─────────────────────────────────── */
+function SectionHeader({ icon, label }: { icon: React.ReactNode; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <span style={{ color: "var(--text-muted)" }}>{icon}</span>
+      <span
+        className="text-xs font-bold uppercase tracking-widest"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function DispatchButton({
+  label,
+  dispatched,
+  color,
+  dimColor,
+  onClick,
+}: {
+  label: string;
+  dispatched: boolean;
+  color: string;
+  dimColor: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={dispatched}
+      className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all"
+      style={{
+        background: dimColor,
+        border: `1px solid ${dispatched ? color : "transparent"}`,
+        color: dispatched ? color : "var(--text-secondary)",
+        cursor: dispatched ? "default" : "pointer",
+        opacity: dispatched ? 0.7 : 1,
+      }}
+    >
+      <Siren size={12} />
+      {dispatched ? `${label} ✓` : label}
+    </button>
+  );
+}
+
+function FullPageLoader() {
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center"
+      style={{ background: "var(--bg)" }}
+    >
+      <div
+        className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+        style={{ borderColor: "rgba(59,130,246,0.3)", borderTopColor: "var(--brand)" }}
+      />
+    </div>
+  );
+}
+
+function FullPageError({ onBack }: { onBack: () => void }) {
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center gap-4"
+      style={{ background: "var(--bg)" }}
+    >
+      <p className="text-sm" style={{ color: "var(--critical)" }}>
+        Call not found or access denied
+      </p>
+      <button
+        onClick={onBack}
+        className="px-4 py-2 rounded-xl text-sm font-medium"
+        style={{ background: "var(--brand-dim)", color: "var(--brand)", border: "1px solid rgba(59,130,246,0.25)" }}
+      >
+        Back to Dashboard
+      </button>
     </div>
   );
 }

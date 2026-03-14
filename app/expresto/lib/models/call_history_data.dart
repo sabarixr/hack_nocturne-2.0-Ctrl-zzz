@@ -23,6 +23,7 @@ enum CallHistoryType { emergency, live }
 
 class CallHistoryEntry {
   const CallHistoryEntry({
+    this.callId,
     required this.type,
     required this.title,
     required this.dateTimeLabel,
@@ -32,6 +33,7 @@ class CallHistoryEntry {
     required this.actions,
   });
 
+  final String? callId;
   final CallHistoryType type;
   final String title;
   final String dateTimeLabel;

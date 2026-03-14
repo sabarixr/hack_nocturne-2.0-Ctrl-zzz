@@ -7,7 +7,9 @@ import 'package:expresto/models/live_call_data.dart';
 import 'package:flutter/material.dart';
 
 class LiveCallPage extends StatefulWidget {
-  const LiveCallPage({super.key});
+  final String contactName;
+  
+  const LiveCallPage({super.key, this.contactName = "Unknown"});
 
   @override
   State<LiveCallPage> createState() => _LiveCallPageState();
@@ -114,12 +116,12 @@ class _LiveCallPageState extends State<LiveCallPage> {
             child: Column(
               children: [
                 _LiveCallHeader(
-                  data: data,
+                  contactName: widget.contactName,
                   onEnd: () => Navigator.pop(context),
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  flex: 2,
+                  flex: 3,
                   child: _CameraStage(
                     data: data,
                     controller: _cameraController,
@@ -135,7 +137,39 @@ class _LiveCallPageState extends State<LiveCallPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Expanded(flex: 1, child: _TranscriptPanel(data: data)),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.panelSoft,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: AppColors.shellBorder),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.info_outline_rounded, color: AppColors.textMuted, size: 28),
+                      SizedBox(height: 12),
+                      Text(
+                        'Live transcription is not available for this call.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Sign directly to your contact. Transcript models are pending.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Center(
                   child: Text(
@@ -249,15 +283,15 @@ class _LiveCallPageState extends State<LiveCallPage> {
 }
 
 class _LiveCallHeader extends StatelessWidget {
-  const _LiveCallHeader({required this.data, required this.onEnd});
+  const _LiveCallHeader({required this.contactName, required this.onEnd});
 
-  final LiveCallData data;
+  final String contactName;
   final VoidCallback onEnd;
 
   @override
   Widget build(BuildContext context) {
     return Text(
-      'Call with ${data.contactName}',
+      'Call with $contactName',
       style: const TextStyle(
         color: AppColors.textPrimary,
         fontSize: 28,

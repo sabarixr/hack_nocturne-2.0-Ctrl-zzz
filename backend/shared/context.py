@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from strawberry.channels import GraphqlWsConsumer
+from strawberry.channels import GraphQLWSConsumer
 
 from apps.users.services import extract_token_payload
 
 
-class AuthenticatedGraphqlWsConsumer(GraphqlWsConsumer):
+class AuthenticatedGraphqlWsConsumer(GraphQLWSConsumer):
     """GraphqlWsConsumer that authenticates via the connection_init payload.
 
     The Flutter client must send:

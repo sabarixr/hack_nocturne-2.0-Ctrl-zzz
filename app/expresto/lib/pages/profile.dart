@@ -1,6 +1,6 @@
 import 'package:expresto/core/theme/app_colors.dart';
-import 'package:expresto/data/mock/settings_mock_data.dart';
-import 'package:expresto/models/settings_data.dart';
+import 'package:expresto/models/medical_info_data.dart';
+import 'package:expresto/pages/contacts.dart';
 import 'package:expresto/pages/medical_info.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -20,7 +20,6 @@ class _ProfilePageState extends State<ProfilePage> {
   String firstName = 'Priya';
   String lastName = 'Menon';
   MedicalInfoData medicalInfo = const MedicalInfoData();
-  List<EmergencyContact> emergencyContacts = [];
 
   final TextEditingController phoneController = TextEditingController(
     text: '9876543210',
@@ -29,7 +28,6 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    emergencyContacts = List.from(settingsMockData.emergencyContacts);
   }
 
   @override
@@ -330,141 +328,52 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildEmergencyContactsCard() {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.shellBorder),
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const EmergencyContactsPage()),
       ),
-      child: Column(
-        children: [
-          if (emergencyContacts.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: emergencyContacts.length,
-                physics: emergencyContacts.length > 3
-                    ? const ClampingScrollPhysics()
-                    : const NeverScrollableScrollPhysics(),
-                separatorBuilder: (context, index) =>
-                    Divider(color: AppColors.shellBorder, height: 1),
-                itemBuilder: (context, index) {
-                  final contact = emergencyContacts[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: contact.iconBgColor,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          alignment: Alignment.center,
-                          child: Icon(
-                            contact.icon,
-                            color: AppColors.textPrimary,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                contact.name,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                contact.phone,
-                                style: const TextStyle(
-                                  color: AppColors.textMuted,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => _deleteEmergencyContact(index),
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            color: AppColors.textMuted,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.panel,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.shellBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.emergency.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
               ),
-            )
-          else
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: AppColors.textMuted,
-                    size: 16,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'No emergency contacts yet',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 13),
-                  ),
-                ],
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.contacts_outlined,
+                color: AppColors.emergency,
+                size: 20,
               ),
             ),
-          if (emergencyContacts.isNotEmpty)
-            Divider(color: AppColors.shellBorder, height: 1),
-          GestureDetector(
-            onTap: _showAddContactSheet,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.blue.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.person_add_alt_1,
-                      color: AppColors.blue,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Add Contact',
-                    style: TextStyle(
-                      color: AppColors.blue,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Text(
+                'Manage Emergency Contacts',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-        ],
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppColors.textMuted,
+              size: 14,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -512,107 +421,6 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
     }
-  }
-
-  void _deleteEmergencyContact(int index) {
-    setState(() {
-      emergencyContacts.removeAt(index);
-    });
-  }
-
-  void _showAddContactSheet() {
-    final nameController = TextEditingController();
-    final contactPhoneController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.panel,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Add Emergency Contact',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: contactPhoneController,
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (nameController.text.isNotEmpty &&
-                        contactPhoneController.text.isNotEmpty) {
-                      setState(() {
-                        emergencyContacts.add(
-                          EmergencyContact(
-                            icon: Icons.contact_phone_outlined,
-                            name: nameController.text,
-                            phone: contactPhoneController.text,
-                            iconBgColor: AppColors.success.withValues(
-                              alpha: 0.15,
-                            ),
-                          ),
-                        );
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text(
-                    'Save Contact',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   void _editName() {

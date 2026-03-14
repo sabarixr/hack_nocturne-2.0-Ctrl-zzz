@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -68,15 +69,18 @@ TEMPLATES = [
 WSGI_APPLICATION = "signbridge.wsgi.application"
 ASGI_APPLICATION = "signbridge.asgi.application"
 
-_db_url: str = os.environ.get("DATABASE_URL", "postgresql://signbridge:signbridge@db:5432/signbridge")
+_db_url: str = env("DATABASE_URL") or ""
+_default_db_url = "postgresql://signbridge:signbridge@db:5432/signbridge"
+_parsed_db = urlparse(_db_url or _default_db_url)
+
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": _db_url.split("/")[-1],
-        "USER": _db_url.split("//")[1].split(":")[0],
-        "PASSWORD": _db_url.split(":")[2].split("@")[0],
-        "HOST": _db_url.split("@")[1].split(":")[0],
-        "PORT": _db_url.split("@")[1].split(":")[1].split("/")[0],
+        "NAME": env("DB_NAME", unquote(_parsed_db.path.lstrip("/")) or "signbridge"),
+        "USER": env("DB_USER", unquote(_parsed_db.username or "") or "signbridge"),
+        "PASSWORD": env("DB_PASSWORD", unquote(_parsed_db.password or "") or "signbridge"),
+        "HOST": env("DB_HOST", _parsed_db.hostname or "db"),
+        "PORT": env("DB_PORT", str(_parsed_db.port or 5432)),
     }
 }
 

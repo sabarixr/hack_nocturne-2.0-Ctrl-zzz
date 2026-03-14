@@ -5,7 +5,9 @@
 *__pycache__/
 *data/
 emotionModel/artifacts/cache/
-
+*dataset/
+*checkpoints/
+*dataset_augmented/
 *.dat
 *.npy
 *.npz
@@ -14,3 +16,18 @@ emotionModel/artifacts/cache/
 emotionModel/artifacts/history.json
 emotionModel/artifacts/metrics.json
 emotionModel/artifacts/training_config.json
+
+# Keep only deployment-ready sign recognition artifacts in git
+sign_recognition/models/flutter_export/*
+!sign_recognition/models/flutter_export/model_meta.json
+!sign_recognition/models/flutter_export/sign_language_model.tflite
+!sign_recognition/models/flutter_export/labels.txt
+
+# Ignore intermediate/heavy training artifacts
+sign_recognition/models/flutter_export/*.onnx
+sign_recognition/models/flutter_export/*.onnx.data
+sign_recognition/models/flutter_export/*.ptl
+sign_recognition/models/flutter_export/*_traced.pt
+sign_recognition/models/trained_weights/*.pt
+
+sign_recognition/training_log.csv

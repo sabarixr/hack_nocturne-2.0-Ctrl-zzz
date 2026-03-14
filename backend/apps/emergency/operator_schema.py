@@ -10,8 +10,10 @@ from apps.emergency.models import (
     CallStatus,
     DispatchEvent,
     EmergencyCall,
+    EmergencyFrame,
     OperatorMessage,
 )
+from apps.emergency.schema import EmergencyFrameType
 from shared.auth import IsAuthenticated, IsOperator
 from shared.redis_layer import channel_group_send, emergency_group
 
@@ -38,6 +40,10 @@ def trigger_twilio_flow(to_number: str):
         logger.error(f"Failed to trigger Twilio flow: {e}")
 
 
+
+import typing
+if typing.TYPE_CHECKING:
+    from apps.emergency.schema import EmergencyFrameType
 
 @strawberry.input
 class SendOperatorMessageInput:
@@ -111,6 +117,25 @@ class OperatorQuery:
             caller_phone=c.user.phone,
             has_operator=c.operator_id is not None,
         )
+
+
+    @strawberry.field(permission_classes=[IsOperator])
+    async def operator_call_frames(self, info: Info, call_id: strawberry.ID) -> list[EmergencyFrameType]:
+        call = await EmergencyCall.objects.aget(id=call_id)
+        return [f async for f in EmergencyFrame.objects.filter(call=call)]  # type: ignore[return-value]
+
+    @strawberry.field(permission_classes=[IsOperator])
+    async def operator_messages(self, info: Info, call_id: strawberry.ID) -> list["OperatorMessageOut"]:
+        call = await EmergencyCall.objects.aget(id=call_id)
+        return [
+            OperatorMessageOut(
+                id=str(m.id),
+                call_id=str(m.call_id),
+                text=m.text,
+                gloss_sequence=m.gloss_sequence,
+                sent_at=m.sent_at,
+            ) async for m in OperatorMessage.objects.filter(call=call).order_by("sent_at")
+        ]
 
 
 @strawberry.type
@@ -230,6 +255,41 @@ class OperatorMutation:
             dispatch_type=event.dispatch_type,
             eta_seconds=event.eta_seconds,
             dispatched_at=event.dispatched_at,
+        )
+
+    @strawberry.mutation(permission_classes=[IsOperator])
+    async def operator_end_call(self, info: Info, call_id: strawberry.ID, outcome: str = "") -> "OperatorCallView":
+        call = await EmergencyCall.objects.select_related("user").aget(id=call_id)
+        call.status = CallStatus.ENDED
+        call.outcome = outcome
+        call.ended_at = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
+        await call.asave(update_fields=["status", "outcome", "ended_at"])
+
+        await channel_group_send(
+            emergency_group(str(call.id)),
+            {
+                "type": "call.update",
+                "call_id": str(call.id),
+                "status": call.status,
+                "peak_urgency_score": call.peak_urgency_score,
+                "emergency_type": call.emergency_type,
+                "updated_at": call.ended_at.isoformat(),
+            },
+        )
+
+        return OperatorCallView(
+            id=str(call.id),
+            status=call.status,
+            emergency_type=call.emergency_type,
+            latitude=call.latitude,
+            longitude=call.longitude,
+            address=call.address,
+            peak_urgency_score=call.peak_urgency_score,
+            started_at=call.started_at,
+            operator_accepted_at=call.operator_accepted_at,
+            caller_name=call.user.name,
+            caller_phone=call.user.phone,
+            has_operator=True,
         )
 
 

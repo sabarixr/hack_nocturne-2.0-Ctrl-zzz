@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { gql } from "@apollo/client";
 import { useQuery, useMutation } from "@apollo/client/react";
 import { useRouter } from "next/navigation";
-import { PhoneCall, AlertTriangle, Clock, MapPin, Eye } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { PhoneCall, AlertTriangle, Clock, MapPin, Eye, Activity, LogOut, Radio } from "lucide-react";
 import clsx from "clsx";
 
 const OPERATOR_CALLS = gql`
@@ -34,10 +36,28 @@ const ACCEPT_CALL = gql`
   }
 `;
 
+function formatTime(iso: string) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function urgencyColor(score: number) {
+  if (score >= 0.75) return "var(--critical)";
+  if (score >= 0.5) return "var(--warning)";
+  return "var(--brand)";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
+  const { token, setToken } = useAuth();
+
+  // Auth guard
+  useEffect(() => {
+    if (token === null) router.push("/login");
+  }, [token, router]);
+
   const { data, loading, error, refetch } = useQuery<any>(OPERATOR_CALLS, {
     pollInterval: 2000,
+    skip: !token,
   });
 
   const [acceptCall, { loading: accepting }] = useMutation(ACCEPT_CALL, {
@@ -46,137 +66,267 @@ export default function DashboardPage() {
     },
   });
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
+  if (token === null) return null;
 
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center">
-        <p className="text-red-600 mb-4">Error loading calls: {error.message}</p>
-        <button
-          onClick={() => refetch()}
-          className="text-blue-600 hover:underline"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  const calls: Record<string, any>[] = data?.operatorCalls || [];
+  const criticalUnhandled = calls.filter(
+    (c) => c.peakUrgencyScore >= 0.75 && !c.hasOperator
+  ).length;
+  const totalActive = calls.length;
 
-  const calls = data?.operatorCalls || [];
-  
-  const handleAccept = (callId: string) => {
-    acceptCall({ variables: { callId } });
-  };
-
-  const handleMonitor = (callId: string) => {
-    router.push(`/call/${callId}`);
+  const handleAccept = (callId: string) => acceptCall({ variables: { callId } });
+  const handleMonitor = (callId: string) => router.push(`/call/${callId}`);
+  const handleLogout = () => {
+    setToken(null);
+    router.push("/login");
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
-            <PhoneCall className="w-8 h-8 text-blue-600" />
-            Operator Dashboard
-          </h1>
-          <div className="flex gap-4">
-            <div className="bg-red-100 text-red-700 px-4 py-2 rounded-full font-medium flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-              {calls.filter((c: Record<string, unknown>) => (c.peakUrgencyScore as number) >= 0.75 && !c.hasOperator).length} Critical Waiting
-            </div>
+    <div
+      className="min-h-screen flex flex-col"
+      style={{ background: "var(--bg)" }}
+    >
+      {/* ── Top nav ─────────────────────────────── */}
+      <header
+        className="glass sticky top-0 z-20 flex items-center justify-between px-8 py-4"
+        style={{ borderBottom: "1px solid var(--border)" }}
+      >
+        <div className="flex items-center gap-3">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{ background: "var(--brand-dim)", border: "1px solid rgba(59,130,246,0.25)" }}
+          >
+            <PhoneCall size={15} style={{ color: "var(--brand)" }} />
           </div>
+          <span className="font-bold text-base tracking-tight" style={{ color: "var(--text-primary)" }}>
+            SignBridge Ops
+          </span>
         </div>
 
-        <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-8 rounded-r-lg">
-          <p className="text-amber-800 text-sm">
-            <span className="font-bold">System Note:</span> Calls with urgency &lt; 0.75 are automatically handled by the Gemini AI assistant. You can monitor them, but focus on Critical calls (&ge; 0.75).
-          </p>
+        <div className="flex items-center gap-3">
+          {/* Live indicator */}
+          <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+            <span
+              className="relative inline-flex w-2 h-2 rounded-full ping-dot"
+              style={{ background: "var(--success)" }}
+            />
+            Live
+          </span>
+
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+            style={{ color: "var(--text-secondary)", background: "transparent", border: "1px solid var(--border)" }}
+            onMouseOver={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.04)";
+            }}
+            onMouseOut={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+            }}
+          >
+            <LogOut size={13} />
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <main className="flex-1 px-8 py-8 max-w-6xl w-full mx-auto">
+        {/* ── Stats row ─────────────────────────── */}
+        <div className="grid grid-cols-3 gap-4 mb-8 animate-fade-up delay-0">
+          <StatCard
+            label="Active calls"
+            value={loading && !data ? "—" : String(totalActive)}
+            icon={<Radio size={16} />}
+            color="var(--brand)"
+          />
+          <StatCard
+            label="Critical unhandled"
+            value={loading && !data ? "—" : String(criticalUnhandled)}
+            icon={<AlertTriangle size={16} />}
+            color={criticalUnhandled > 0 ? "var(--critical)" : "var(--success)"}
+            urgent={criticalUnhandled > 0}
+          />
+          <StatCard
+            label="AI-handled"
+            value={loading && !data ? "—" : String(calls.filter((c) => c.peakUrgencyScore < 0.75).length)}
+            icon={<Activity size={16} />}
+            color="var(--warning)"
+          />
         </div>
 
-        {calls.length === 0 ? (
-          <div className="bg-white rounded-xl border border-dashed border-slate-300 p-12 text-center text-slate-500">
-            No active emergency calls right now.
+        {/* ── Info banner ─────────────────────── */}
+        <div
+          className="rounded-xl px-5 py-3 mb-6 text-sm animate-fade-up delay-1"
+          style={{
+            background: "rgba(245,158,11,0.07)",
+            border: "1px solid rgba(245,158,11,0.2)",
+            color: "#fbbf24",
+          }}
+        >
+          <span className="font-semibold">Note:</span> Calls with urgency below 75% are handled by the Gemini AI.
+          Focus on <span className="font-semibold text-red-400">Critical</span> calls first.
+        </div>
+
+        {/* ── Call list ─────────────────────── */}
+        {loading && !data ? (
+          <SkeletonList />
+        ) : error ? (
+          <div
+            className="rounded-2xl p-10 flex flex-col items-center gap-4 animate-fade-up"
+            style={{ background: "var(--surface-1)", border: "1px solid var(--border)" }}
+          >
+            <p className="text-sm" style={{ color: "var(--critical)" }}>
+              Error loading calls: {error.message}
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="px-4 py-2 rounded-lg text-sm font-medium"
+              style={{ background: "var(--brand-dim)", color: "var(--brand)", border: "1px solid rgba(59,130,246,0.25)" }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : calls.length === 0 ? (
+          <div
+            className="rounded-2xl p-16 flex flex-col items-center gap-3 animate-fade-up"
+            style={{ background: "var(--surface-1)", border: "1px dashed var(--border-bright)" }}
+          >
+            <PhoneCall size={32} style={{ color: "var(--text-muted)" }} />
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              No active emergency calls right now
+            </p>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {calls.map((call: Record<string, unknown>) => {
-              const isCritical = (call.peakUrgencyScore as number) >= 0.75;
+          <div className="flex flex-col gap-3">
+            {calls.map((call, idx) => {
+              const isCritical = call.peakUrgencyScore >= 0.75;
               const callId = call.id as string;
-              
+
               return (
                 <div
                   key={callId}
                   className={clsx(
-                    "bg-white rounded-xl shadow-sm border overflow-hidden transition-all",
-                    isCritical && !call.hasOperator
-                      ? "border-red-500 shadow-red-100"
-                      : "border-slate-200"
+                    "rounded-2xl overflow-hidden transition-all animate-fade-up",
+                    isCritical && !call.hasOperator && "border-pulse-red"
                   )}
+                  style={{
+                    background: "var(--surface-1)",
+                    border: isCritical && !call.hasOperator
+                      ? "1px solid rgba(239,68,68,0.35)"
+                      : "1px solid var(--border)",
+                    animationDelay: `${idx * 60}ms`,
+                    boxShadow: isCritical && !call.hasOperator
+                      ? "0 0 0 0 var(--critical-glow)"
+                      : "none",
+                  }}
                 >
-                  <div className="p-6 flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                  {/* Critical top bar */}
+                  {isCritical && !call.hasOperator && (
+                    <div
+                      className="h-0.5 w-full"
+                      style={{ background: "linear-gradient(90deg, var(--critical), transparent)" }}
+                    />
+                  )}
+
+                  <div className="px-6 py-5 flex items-center gap-6">
+                    {/* Urgency ring */}
+                    <div
+                      className={clsx(
+                        "relative shrink-0 w-12 h-12 rounded-full flex items-center justify-center text-xs font-bold font-mono",
+                        isCritical && !call.hasOperator && "pulse-red"
+                      )}
+                      style={{
+                        background: isCritical ? "var(--critical-dim)" : "var(--brand-dim)",
+                        border: `2px solid ${urgencyColor(call.peakUrgencyScore)}`,
+                        color: urgencyColor(call.peakUrgencyScore),
+                      }}
+                    >
+                      {Math.round(call.peakUrgencyScore * 100)}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         {isCritical ? (
-                          <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold tracking-wide flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
-                            CRITICAL
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide"
+                            style={{ background: "var(--critical-dim)", color: "var(--critical)" }}
+                          >
+                            <AlertTriangle size={10} />
+                            Critical
                           </span>
                         ) : (
-                          <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold tracking-wide">
-                            AI HANDLED
+                          <span
+                            className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wide"
+                            style={{ background: "rgba(245,158,11,0.1)", color: "var(--warning)" }}
+                          >
+                            AI Handled
                           </span>
                         )}
-                        <span className="text-sm font-semibold text-slate-500 uppercase tracking-wide">
-                          {call.emergencyType as string}
+                        <span
+                          className="text-xs font-semibold uppercase tracking-wider"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {call.emergencyType}
                         </span>
-                        <span className={clsx(
-                          "text-sm font-medium px-2 py-0.5 rounded-full",
-                          call.status === "EMERGENCY_TRIGGERED" ? "bg-red-50 text-red-600" :
-                          call.status === "ACTIVE" ? "bg-blue-50 text-blue-600" :
-                          "bg-slate-100 text-slate-600"
-                        )}>
-                          {call.status as string}
+                        <span
+                          className="px-2 py-0.5 rounded-md text-xs"
+                          style={{
+                            background: "rgba(255,255,255,0.04)",
+                            color: "var(--text-secondary)",
+                            border: "1px solid var(--border)",
+                          }}
+                        >
+                          {call.status}
                         </span>
                       </div>
-                      
-                      <h3 className="text-xl font-bold text-slate-900 mb-1">
-                        {call.callerName as string} <span className="text-slate-500 font-normal text-base ml-2">{call.callerPhone as string}</span>
+
+                      <h3 className="font-bold text-base truncate" style={{ color: "var(--text-primary)" }}>
+                        {call.callerName}
+                        <span
+                          className="ml-2 font-normal text-sm"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {call.callerPhone}
+                        </span>
                       </h3>
-                      
-                      <div className="flex items-center gap-6 text-sm text-slate-500">
+
+                      <div className="flex items-center gap-5 mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-4 h-4" />
-                          {(call.address as string) || "Location unavailable"}
+                          <MapPin size={11} />
+                          {call.address || "Location unavailable"}
                         </span>
                         <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {new Date(call.startedAt as string).toLocaleTimeString()}
-                        </span>
-                        <span className="flex items-center gap-1 font-mono">
-                          Score: {((call.peakUrgencyScore as number) * 100).toFixed(0)}%
+                          <Clock size={11} />
+                          {formatTime(call.startedAt)}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-2 ml-6">
+                    {/* Action */}
+                    <div className="shrink-0">
                       {call.hasOperator ? (
                         <div className="flex items-center gap-3">
-                          <span className="text-sm text-green-600 font-medium flex items-center gap-1">
-                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                            Being handled
+                          <span
+                            className="text-xs font-medium flex items-center gap-1.5"
+                            style={{ color: "var(--success)" }}
+                          >
+                            <span
+                              className="w-1.5 h-1.5 rounded-full"
+                              style={{ background: "var(--success)" }}
+                            />
+                            Handled
                           </span>
                           <button
                             onClick={() => handleMonitor(callId)}
-                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                            style={{
+                              background: "rgba(255,255,255,0.04)",
+                              border: "1px solid var(--border-bright)",
+                              color: "var(--text-primary)",
+                            }}
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye size={14} />
                             View
                           </button>
                         </div>
@@ -184,16 +334,27 @@ export default function DashboardPage() {
                         <button
                           onClick={() => handleAccept(callId)}
                           disabled={accepting}
-                          className="bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-bold shadow-md shadow-red-200 transition-colors animate-pulse hover:animate-none"
+                          className="px-6 py-2.5 rounded-xl text-sm font-bold transition-all"
+                          style={{
+                            background: accepting ? "rgba(239,68,68,0.5)" : "var(--critical)",
+                            color: "#fff",
+                            boxShadow: accepting ? "none" : "0 4px 20px rgba(239,68,68,0.4)",
+                            cursor: accepting ? "not-allowed" : "pointer",
+                          }}
                         >
-                          ACCEPT CALL
+                          Accept Call
                         </button>
                       ) : (
                         <button
                           onClick={() => handleMonitor(callId)}
-                          className="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all"
+                          style={{
+                            background: "transparent",
+                            border: "1px solid var(--border-bright)",
+                            color: "var(--text-secondary)",
+                          }}
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye size={14} />
                           Monitor AI
                         </button>
                       )}
@@ -204,7 +365,55 @@ export default function DashboardPage() {
             })}
           </div>
         )}
+      </main>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon,
+  color,
+  urgent = false,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  color: string;
+  urgent?: boolean;
+}) {
+  return (
+    <div
+      className={clsx("rounded-2xl px-6 py-5", urgent && "pulse-red")}
+      style={{
+        background: "var(--surface-1)",
+        border: urgent ? "1px solid rgba(239,68,68,0.3)" : "1px solid var(--border)",
+      }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+          {label}
+        </span>
+        <span style={{ color }}>{icon}</span>
       </div>
+      <p className="text-3xl font-bold font-mono" style={{ color }}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function SkeletonList() {
+  return (
+    <div className="flex flex-col gap-3">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="skeleton rounded-2xl h-24"
+          style={{ animationDelay: `${i * 80}ms` }}
+        />
+      ))}
     </div>
   );
 }
