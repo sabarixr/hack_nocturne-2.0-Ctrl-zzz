@@ -13,6 +13,19 @@ class ApiClient {
     final prefs = await SharedPreferences.getInstance();
     authToken = prefs.getString('auth_token');
 
+    client = ValueNotifier(_buildClient());
+  }
+
+  /// Call this after login/register to update the existing ValueNotifier
+  /// so GraphQLProvider picks up the new token without a rebuild.
+  static Future<void> updateToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    authToken = token;
+    client.value = _buildClient();
+  }
+
+  static GraphQLClient _buildClient() {
     final HttpLink httpLink = HttpLink('http://10.113.21.127:8000/graphql');
 
     final AuthLink authLink = AuthLink(
@@ -39,11 +52,9 @@ class ApiClient {
       link,
     );
 
-    client = ValueNotifier(
-      GraphQLClient(
-        link: link,
-        cache: GraphQLCache(store: HiveStore()),
-      ),
+    return GraphQLClient(
+      link: link,
+      cache: GraphQLCache(store: HiveStore()),
     );
   }
 
