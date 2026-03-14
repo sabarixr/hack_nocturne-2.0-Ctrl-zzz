@@ -21,7 +21,20 @@ async def channel_group_discard(group: str, channel: str) -> None:
 
 
 def emergency_group(call_id: str) -> str:
+    """Group for call.update messages (status changes, urgency updates)."""
     return f"emergency_{call_id}"
+
+
+def operator_message_group(call_id: str) -> str:
+    """Group for operator.message events — separate from call.update so both
+    subscriptions can coexist on the same WS connection without racing."""
+    return f"emergency_op_{call_id}"
+
+
+def frame_ml_group(call_id: str) -> str:
+    """Group for frame.ml events — separate channel so frameMlStream doesn't
+    starve the other subscriptions."""
+    return f"emergency_ml_{call_id}"
 
 
 def webrtc_group(call_id: str) -> str:

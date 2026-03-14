@@ -17,7 +17,7 @@ from apps.emergency.models import (
 )
 from apps.emergency.services import compute_urgency_score, force_urgency
 from shared.auth import IsAuthenticated
-from shared.redis_layer import channel_group_send, emergency_group
+from shared.redis_layer import channel_group_send, emergency_group, frame_ml_group, operator_message_group
 
 
 async def _get_call_for_request(call_id, request) -> EmergencyCall:
@@ -273,7 +273,7 @@ class EmergencyMutation:
 
         # Also broadcast the full ML result so frameMLStream subscribers get it
         await channel_group_send(
-            emergency_group(str(call.id)),
+            frame_ml_group(str(call.id)),
             {
                 "type": "frame.ml",
                 "call_id": str(call.id),
@@ -352,7 +352,7 @@ class EmergencyMutation:
         )
 
         await channel_group_send(
-            emergency_group(str(call.id)),
+            operator_message_group(str(call.id)),
             {
                 "type": "operator.message",
                 "message_id": str(msg.id),
@@ -507,7 +507,7 @@ async def _gemini_auto_reply(
     )
 
     await channel_group_send(
-        emergency_group(str(call.id)),
+        operator_message_group(str(call.id)),
         {
             "type": "operator.message",
             "message_id": str(msg.id),

@@ -264,7 +264,16 @@ class _EmergencyPageState extends State<EmergencyPage>
           ),
         )
         .listen((result) {
-          if (!mounted || result.hasException || result.data == null) return;
+          if (!mounted) return;
+          if (result.hasException) {
+            print('[opMsg] subscription error: ${result.exception}');
+            return;
+          }
+          if (result.data == null) {
+            print('[opMsg] null data received');
+            return;
+          }
+          print('[opMsg] data: ${result.data}');
           final ev = result.data!['operatorMessageReceived'];
           if (ev == null) return;
           final raw = ev['text'] as String? ?? '';

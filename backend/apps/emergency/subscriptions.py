@@ -12,6 +12,8 @@ from shared.redis_layer import (
     channel_group_add,
     channel_group_discard,
     emergency_group,
+    frame_ml_group,
+    operator_message_group,
 )
 
 
@@ -94,7 +96,7 @@ class EmergencySubscription:
         call_id: strawberry.ID,
     ) -> AsyncGenerator[OperatorMessageEvent, None]:
         ws = info.context["ws"]
-        group = emergency_group(str(call_id))
+        group = operator_message_group(str(call_id))
         await channel_group_add(group, ws.channel_name)
         try:
             async for message in ws.channel_receive():
@@ -147,7 +149,7 @@ class EmergencySubscription:
         for individual mutation responses.
         """
         ws = info.context["ws"]
-        group = emergency_group(str(call_id))
+        group = frame_ml_group(str(call_id))
         await channel_group_add(group, ws.channel_name)
         try:
             async for message in ws.channel_receive():

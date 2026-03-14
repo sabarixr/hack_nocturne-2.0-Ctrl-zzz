@@ -15,7 +15,7 @@ from apps.emergency.models import (
 )
 from apps.emergency.schema import EmergencyFrameType
 from shared.auth import IsAuthenticated, IsOperator
-from shared.redis_layer import channel_group_send, emergency_group
+from shared.redis_layer import channel_group_send, emergency_group, operator_message_group
 
 from django.conf import settings
 from twilio.rest import Client
@@ -207,7 +207,7 @@ class OperatorMutation:
             gloss_sequence=input.gloss_sequence,
         )
         await channel_group_send(
-            emergency_group(str(call.id)),
+            operator_message_group(str(call.id)),
             {
                 "type": "operator.message",
                 "message_id": str(msg.id),
