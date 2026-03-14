@@ -59,8 +59,21 @@ class _ChatMessage {
 }
 
 // ---------------------------------------------------------------------------
-// Page
+// Transcript entry model
 // ---------------------------------------------------------------------------
+
+class _TranscriptEntry {
+  final String text;
+  final _TranscriptKind kind;
+  final DateTime time;
+  _TranscriptEntry({
+    required this.text,
+    required this.kind,
+    required this.time,
+  });
+}
+
+enum _TranscriptKind { sign, userMessage }
 
 class EmergencyPage extends StatefulWidget {
   const EmergencyPage({super.key});
@@ -95,6 +108,13 @@ class _EmergencyPageState extends State<EmergencyPage>
   bool _sendingMsg = false;
   bool _triggeringEmergency = false;
 
+  // Transcript — live log of detected signs + user messages
+  final List<_TranscriptEntry> _transcript = [];
+  final ScrollController _transcriptScroll = ScrollController();
+  // Debounce: avoid spamming transcript with the same sign every frame
+  String _lastLoggedSign = '';
+  DateTime _lastSignLogTime = DateTime.fromMillisecondsSinceEpoch(0);
+
   @override
   void initState() {
     super.initState();
@@ -116,6 +136,7 @@ class _EmergencyPageState extends State<EmergencyPage>
     _cameraGlowController.dispose();
     _msgController.dispose();
     _chatScroll.dispose();
+    _transcriptScroll.dispose();
     super.dispose();
   }
 
@@ -138,6 +159,16 @@ class _EmergencyPageState extends State<EmergencyPage>
           urgencyStatus: _urgencyLabel(update.urgencyScore),
         );
       });
+      // Log new signs to transcript (debounced: same sign max once per 3s)
+      for (final sign in update.detectedSigns) {
+        final now = DateTime.now();
+        if (sign != _lastLoggedSign ||
+            now.difference(_lastSignLogTime).inSeconds >= 3) {
+          _lastLoggedSign = sign;
+          _lastSignLogTime = now;
+          _addTranscriptEntry(sign.toUpperCase(), _TranscriptKind.sign);
+        }
+      }
     });
   }
 
@@ -228,6 +259,24 @@ class _EmergencyPageState extends State<EmergencyPage>
         _chatScroll.animateTo(
           _chatScroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  void _addTranscriptEntry(String text, _TranscriptKind kind) {
+    if (!mounted) return;
+    setState(() {
+      _transcript.add(
+        _TranscriptEntry(text: text, kind: kind, time: DateTime.now()),
+      );
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_transcriptScroll.hasClients) {
+        _transcriptScroll.animateTo(
+          _transcriptScroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
       }
@@ -354,6 +403,7 @@ class _EmergencyPageState extends State<EmergencyPage>
     if (text.isEmpty || _callId == null || _sendingMsg) return;
     _msgController.clear();
     _addMessage(text, isUser: true);
+    _addTranscriptEntry(text, _TranscriptKind.userMessage);
     setState(() => _sendingMsg = true);
     try {
       await ApiClient.client.value.mutate(
@@ -468,7 +518,10 @@ class _EmergencyPageState extends State<EmergencyPage>
                               onSend: _sendMessage,
                             ),
                             const SizedBox(height: 10),
-                            _ActionsPanel(data: data),
+                            _TranscriptPanel(
+                              transcript: _transcript,
+                              scrollController: _transcriptScroll,
+                            ),
                             const SizedBox(height: 10),
                             Row(
                               children: [
@@ -1092,73 +1145,129 @@ class _UrgencyPanel extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Actions Panel
+// Transcript Panel
 // ---------------------------------------------------------------------------
 
-class _ActionsPanel extends StatelessWidget {
-  const _ActionsPanel({required this.data});
-  final EmergencySessionData data;
+class _TranscriptPanel extends StatelessWidget {
+  const _TranscriptPanel({
+    required this.transcript,
+    required this.scrollController,
+  });
+  final List<_TranscriptEntry> transcript;
+  final ScrollController scrollController;
+
+  String _fmt(DateTime t) {
+    final h = t.hour.toString().padLeft(2, '0');
+    final m = t.minute.toString().padLeft(2, '0');
+    final s = t.second.toString().padLeft(2, '0');
+    return '$h:$m:$s';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _GlassPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.task_alt_rounded,
-                color: AppColors.success,
-                size: 16,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                data.actionsTitle,
-                style: const TextStyle(
-                  color: AppColors.textMuted,
-                  fontSize: 12,
-                  letterSpacing: 2.2,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: _GlassPanel(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Row(
+              children: [
+                const Icon(
+                  Icons.content_paste_rounded,
+                  color: AppColors.teal,
+                  size: 14,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          ...List.generate(data.actions.length, (index) {
-            final action = data.actions[index];
-            return Container(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: index == data.actions.length - 1
-                      ? BorderSide.none
-                      : const BorderSide(color: AppColors.divider),
-                ),
-              ),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 34,
-                    child: Icon(
-                      action.icon,
-                      color: const Color(0xFFC9C9DA),
-                      size: 20,
-                    ),
+                const SizedBox(width: 8),
+                const Text(
+                  'TRANSCRIPT',
+                  style: TextStyle(
+                    color: AppColors.textMuted,
+                    fontSize: 12,
+                    letterSpacing: 2.2,
                   ),
-                  Expanded(
+                ),
+                const SizedBox(width: 8),
+                if (transcript.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
-                      action.label,
+                      '${transcript.length}',
                       style: const TextStyle(
-                        color: Color(0xFFC9C9DA),
-                        fontSize: 17,
+                        color: AppColors.teal,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
-                ],
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Body
+            if (transcript.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Waiting for signs...',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.builder(
+                  controller: scrollController,
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
+                  itemCount: transcript.length,
+                  itemBuilder: (context, index) {
+                    final entry = transcript[index];
+                    final isSign = entry.kind == _TranscriptKind.sign;
+                    final iconData = isSign
+                        ? Icons.sign_language_rounded
+                        : Icons.chat_bubble_outline_rounded;
+                    final color = isSign ? AppColors.teal : AppColors.blue;
+                    final textColor = isSign
+                        ? AppColors.teal
+                        : AppColors.textPrimary;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _fmt(entry.time),
+                            style: const TextStyle(
+                              color: AppColors.textMuted,
+                              fontSize: 10,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Icon(iconData, color: color, size: 13),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              entry.text,
+                              style: TextStyle(color: textColor, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
               ),
-            );
-          }),
-        ],
+          ],
+        ),
       ),
     );
   }
