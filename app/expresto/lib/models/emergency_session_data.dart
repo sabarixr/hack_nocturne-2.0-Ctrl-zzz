@@ -30,6 +30,38 @@ class EmergencySessionData {
   final String operatorEta;
   final String actionsTitle;
   final List<EmergencyActionItem> actions;
+
+  EmergencySessionData copyWith({
+    String? headerTag,
+    String? callState,
+    String? timer,
+    String? liveIndicator,
+    String? cameraHint,
+    String? urgencyLabel,
+    int? urgencyPercent,
+    String? urgencyStatus,
+    List<int>? urgencyBars,
+    String? operatorTitle,
+    String? operatorEta,
+    String? actionsTitle,
+    List<EmergencyActionItem>? actions,
+  }) {
+    return EmergencySessionData(
+      headerTag: headerTag ?? this.headerTag,
+      callState: callState ?? this.callState,
+      timer: timer ?? this.timer,
+      liveIndicator: liveIndicator ?? this.liveIndicator,
+      cameraHint: cameraHint ?? this.cameraHint,
+      urgencyLabel: urgencyLabel ?? this.urgencyLabel,
+      urgencyPercent: urgencyPercent ?? this.urgencyPercent,
+      urgencyStatus: urgencyStatus ?? this.urgencyStatus,
+      urgencyBars: urgencyBars ?? this.urgencyBars,
+      operatorTitle: operatorTitle ?? this.operatorTitle,
+      operatorEta: operatorEta ?? this.operatorEta,
+      actionsTitle: actionsTitle ?? this.actionsTitle,
+      actions: actions ?? this.actions,
+    );
+  }
 }
 
 class EmergencyActionItem {
