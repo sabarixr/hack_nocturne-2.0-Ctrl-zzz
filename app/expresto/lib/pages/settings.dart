@@ -4,7 +4,7 @@ import 'package:expresto/data/mock/settings_mock_data.dart';
 import 'package:expresto/models/settings_data.dart';
 import 'package:expresto/pages/calibration.dart';
 import 'package:expresto/pages/contacts.dart';
-import 'package:expresto/pages/home.dart';
+import 'package:expresto/pages/login.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -526,9 +526,11 @@ class _SettingsPageState extends State<SettingsPage> {
                 final prefs = await SharedPreferences.getInstance();
                 await prefs.remove('auth_token');
                 ApiClient.authToken = null;
+                ApiClient.client.value =
+                    ApiClient.client.value; // reset notifier
                 if (!mounted) return;
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomePage()),
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
                   (route) => false,
                 );
               }
