@@ -31,6 +31,7 @@ class OperatorMessageEvent:
     text: str
     gloss_sequence: strawberry.scalars.JSON
     sent_at: datetime.datetime
+    sender: str  # "user" | "operator"
 
 
 @strawberry.type
@@ -105,6 +106,7 @@ class EmergencySubscription:
                     text=message["text"],
                     gloss_sequence=message["gloss_sequence"],
                     sent_at=datetime.datetime.fromisoformat(message["sent_at"]),
+                    sender=message.get("sender", "user" if message["text"].startswith("[USER]") else "operator"),
                 )
         finally:
             await channel_group_discard(group, ws.channel_name)

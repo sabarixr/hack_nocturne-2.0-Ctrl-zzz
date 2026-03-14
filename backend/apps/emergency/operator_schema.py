@@ -134,6 +134,7 @@ class OperatorQuery:
                 text=m.text,
                 gloss_sequence=m.gloss_sequence,
                 sent_at=m.sent_at,
+                sender="user" if m.text.startswith("[USER]") else "operator",
             ) async for m in OperatorMessage.objects.filter(call=call).order_by("sent_at")
         ]
 
@@ -222,6 +223,7 @@ class OperatorMutation:
             text=msg.text,
             gloss_sequence=msg.gloss_sequence,
             sent_at=msg.sent_at,
+            sender="operator",
         )
 
     @strawberry.mutation(permission_classes=[IsOperator])
@@ -300,6 +302,7 @@ class OperatorMessageOut:
     text: str
     gloss_sequence: strawberry.scalars.JSON
     sent_at: datetime.datetime
+    sender: str  # "user" | "operator"
 
 
 @strawberry.type

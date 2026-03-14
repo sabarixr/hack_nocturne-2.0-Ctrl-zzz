@@ -20,6 +20,17 @@ from shared.auth import IsAuthenticated
 from shared.redis_layer import channel_group_send, emergency_group
 
 
+async def _get_call_for_request(call_id, request) -> EmergencyCall:
+    """Fetch an EmergencyCall by id.
+
+    Operators can access any call; regular users may only access their own.
+    """
+    is_operator = getattr(request, "is_operator", False)
+    if is_operator:
+        return await EmergencyCall.objects.aget(id=call_id)
+    return await EmergencyCall.objects.aget(id=call_id, user_id=request.user_id)
+
+
 @strawberry_django.type(EmergencyCall)
 class EmergencyCallType:
     id: strawberry.ID
@@ -150,7 +161,7 @@ class EmergencyMutation:
     @strawberry.mutation(permission_classes=[IsAuthenticated])
     async def activate_call(self, info: Info, call_id: strawberry.ID) -> EmergencyCallType:
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=call_id, user_id=user_id)
+        call = await _get_call_for_request(call_id, info.context.request)
         call.status = CallStatus.ACTIVE
         await call.asave(update_fields=["status"])
         return call  # type: ignore[return-value]
@@ -158,7 +169,7 @@ class EmergencyMutation:
     @strawberry.mutation(permission_classes=[IsAuthenticated])
     async def submit_frame(self, info: Info, input: SubmitFrameInput) -> FrameMLResult:
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=input.call_id, user_id=user_id)
+        call = await _get_call_for_request(input.call_id, info.context.request)
 
         # ── Server-side ML processing ────────────────────────────────────────
         # When the client sends a raw JPEG frame we run MediaPipe on the server
@@ -304,7 +315,7 @@ class EmergencyMutation:
     async def trigger_emergency(self, info: Info, call_id: strawberry.ID) -> EmergencyCallType:
         """Force urgency to 1.0 — the SOS button. Immediately triggers EMERGENCY_TRIGGERED."""
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=call_id, user_id=user_id)
+        call = await _get_call_for_request(call_id, info.context.request)
         force_urgency(str(call_id))
         call.peak_urgency_score = 1.0
         call.status = CallStatus.EMERGENCY_TRIGGERED
@@ -332,7 +343,7 @@ class EmergencyMutation:
     async def send_message(self, info: Info, call_id: strawberry.ID, text: str) -> OperatorMessageType:
         """User sends a typed text message during the call — broadcast to operator dashboard."""
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=call_id, user_id=user_id)
+        call = await _get_call_for_request(call_id, info.context.request)
 
         msg = await OperatorMessage.objects.acreate(
             call=call,
@@ -361,7 +372,7 @@ class EmergencyMutation:
     @strawberry.mutation(permission_classes=[IsAuthenticated])
     async def end_call(self, info: Info, input: EndCallInput) -> EmergencyCallType:
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=input.call_id, user_id=user_id)
+        call = await _get_call_for_request(input.call_id, info.context.request)
         call.status = CallStatus.ENDED
         call.outcome = input.outcome
         call.ended_at = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc)
@@ -386,7 +397,7 @@ class EmergencyMutation:
         self, info: Info, input: PostCallReportInput
     ) -> EmergencyCallType:
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=input.call_id, user_id=user_id)
+        call = await _get_call_for_request(input.call_id, info.context.request)
         call.outcome = input.outcome
         await call.asave(update_fields=["outcome"])
         return call  # type: ignore[return-value]
@@ -408,7 +419,7 @@ class EmergencyQuery:
     @strawberry.field(permission_classes=[IsAuthenticated])
     async def call_frames(self, info: Info, call_id: strawberry.ID) -> list[EmergencyFrameType]:
         user_id = info.context.request.user_id
-        call = await EmergencyCall.objects.aget(id=call_id, user_id=user_id)
+        call = await _get_call_for_request(call_id, info.context.request)
         return [f async for f in EmergencyFrame.objects.filter(call=call)]  # type: ignore[return-value]
 
     @strawberry.field(permission_classes=[IsAuthenticated])
@@ -429,7 +440,7 @@ class EmergencyQuery:
     async def call_report(self, info: Info, call_id: strawberry.ID) -> "CallReportType | None":
         user_id = info.context.request.user_id
         try:
-            call = await EmergencyCall.objects.aget(id=call_id, user_id=user_id)
+            call = await _get_call_for_request(call_id, info.context.request)
         except EmergencyCall.DoesNotExist:
             return None
 
