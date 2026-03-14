@@ -12,9 +12,16 @@ aiortc==1.9.0
 daphne==4.1.2
 django-cors-headers==4.3.1
 pydantic-settings==2.2.1
+pydantic<2.10
 pillow==10.3.0
 ai-edge-litert
 numpy>=2.0.0
 uvicorn[standard]==0.29.0
 python-decouple==3.8
 twilio==9.10.3
+mediapipe==0.10.14
+opencv-python-headless==4.10.0.84
+
+# Avoid slow resolver backtracking caused by protobuf compatibility in google deps
+grpcio==1.62.3
+grpcio-status==1.62.3

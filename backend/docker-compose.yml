@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   backend:
     build: .
@@ -16,7 +14,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/graphql -X POST -H 'Content-Type: application/json' -d '{\"query\":\"{health}\"}' || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request,json; r=urllib.request.urlopen(urllib.request.Request('http://localhost:8000/graphql',data=b'{\\\"query\\\":\\\"{health}\\\"}',headers={'Content-Type':'application/json'})); exit(0 if json.loads(r.read()).get('data') else 1)\"",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,8 +34,6 @@ services:
       POSTGRES_DB: signbridge
       POSTGRES_USER: signbridge
       POSTGRES_PASSWORD: signbridge
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
