@@ -175,3 +175,64 @@ body {
   background: inherit;
   animation: ping-dot 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
+
+/* ── Sidebar layout offset ────────── */
+/* Applied to all pages when sidebar is visible */
+.sidebar-offset {
+  padding-left: 14rem; /* 224px = w-56 */
+}
+
+/* Login page has no sidebar — full width */
+body:has(.no-sidebar) .sidebar-offset {
+  padding-left: 0;
+}
+
+/* ── Card hover ───────────────────── */
+.card-hover {
+  transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+}
+.card-hover:hover {
+  border-color: var(--border-bright) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35);
+  transform: translateY(-1px);
+}
+
+/* ── Tag pill ─────────────────────── */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 1px solid;
+}
+
+/* ── Urgency gradient bar ─────────── */
+.urgency-bar-critical { background: linear-gradient(90deg, #ef4444, #f97316); }
+.urgency-bar-warning  { background: linear-gradient(90deg, #f59e0b, #eab308); }
+.urgency-bar-normal   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+
+/* ── Upload drop zone ─────────────── */
+@keyframes border-dash {
+  to { background-position: 100% 0, 0 100%, 0 0, 100% 100%; }
+}
+.drop-zone {
+  border: 2px dashed var(--border-bright);
+  border-radius: 16px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragging {
+  border-color: var(--brand);
+  background: var(--brand-dim);
+}
+
+/* ── Section heading ──────────────── */
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
