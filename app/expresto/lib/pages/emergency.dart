@@ -53,10 +53,21 @@ const _kOperatorMessageSubscription = r'''
 
 class _ChatMessage {
   final String text;
+
+  /// Clean text for the avatar (no symbols/punctuation).  Equals [text] for
+  /// user-sent messages.  For operator messages the original is kept in [text]
+  /// so the chat bubble shows the full reply, while [avatarText] is the
+  /// stripped version that gets fed to the SignKit WebView.
+  final String avatarText;
   final bool isUser; // false = AI/operator
   final DateTime time;
 
-  _ChatMessage({required this.text, required this.isUser, required this.time});
+  _ChatMessage({
+    required this.text,
+    String? avatarText,
+    required this.isUser,
+    required this.time,
+  }) : avatarText = avatarText ?? text;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,7 +129,7 @@ class _EmergencyPageState extends State<EmergencyPage>
 
   String? get _latestOperatorMessage {
     for (final message in _messages.reversed) {
-      if (!message.isUser) return message.text;
+      if (!message.isUser) return message.avatarText;
     }
     return null;
   }
@@ -234,6 +245,15 @@ class _EmergencyPageState extends State<EmergencyPage>
 
   // ── Operator message subscription (WS) ─────────────────────────────────
 
+  /// Strips all characters that are not letters, digits, or whitespace so the
+  /// text can be safely passed to the SignKit avatar textarea.  The avatar
+  /// site only understands plain words separated by spaces; punctuation and
+  /// special symbols confuse its parser.
+  static String _sanitizeForAvatar(String text) {
+    // Remove every character that is not a Unicode letter, digit, or space.
+    return text.replaceAll(RegExp(r'[^\p{L}\p{N} ]', unicode: true), '').trim();
+  }
+
   void _listenToOperatorMessages() {
     if (_callId == null) return;
     _operatorMsgSub = ApiClient.client.value
@@ -247,19 +267,26 @@ class _EmergencyPageState extends State<EmergencyPage>
           if (!mounted || result.hasException || result.data == null) return;
           final ev = result.data!['operatorMessageReceived'];
           if (ev == null) return;
-          final text = ev['text'] as String? ?? '';
-          if (text.isEmpty) return;
+          final raw = ev['text'] as String? ?? '';
+          if (raw.isEmpty) return;
           // Skip messages the user sent themselves (backend echoes them back
           // via operator.message, but we already added them optimistically).
-          if (text.startsWith('[USER]')) return;
-          _addMessage(text, isUser: false);
+          if (raw.startsWith('[USER]')) return;
+          // Display the original text in the chat panel but send the cleaned
+          // version to the avatar so it can animate it without errors.
+          _addMessage(raw, isUser: false, avatarText: _sanitizeForAvatar(raw));
         });
   }
 
-  void _addMessage(String text, {required bool isUser}) {
+  void _addMessage(String text, {required bool isUser, String? avatarText}) {
     setState(() {
       _messages.add(
-        _ChatMessage(text: text, isUser: isUser, time: DateTime.now()),
+        _ChatMessage(
+          text: text,
+          avatarText: avatarText,
+          isUser: isUser,
+          time: DateTime.now(),
+        ),
       );
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
