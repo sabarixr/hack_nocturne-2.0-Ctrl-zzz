@@ -1,26 +1,177 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg:            #080c14;
+  --surface-1:     #0f1623;
+  --surface-2:     #16202f;
+  --surface-3:     #1d2a3d;
+  --border:        rgba(255,255,255,0.07);
+  --border-bright: rgba(255,255,255,0.13);
+  --text-primary:  #e8eaf6;
+  --text-secondary:#8b93a8;
+  --text-muted:    #4e5870;
+  --brand:         #3b82f6;
+  --brand-dim:     rgba(59,130,246,0.15);
+  --brand-glow:    rgba(59,130,246,0.4);
+  --critical:      #ef4444;
+  --critical-dim:  rgba(239,68,68,0.12);
+  --critical-glow: rgba(239,68,68,0.35);
+  --success:       #22c55e;
+  --warning:       #f59e0b;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--bg);
+  --color-foreground:  var(--text-primary);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ─────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  min-height: 100dvh;
+}
+
+/* ── Scrollbar ───────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* ── Selection & Focus ───────────── */
+::selection { background: rgba(59,130,246,0.3); color: #fff; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+/* ── Keyframes ────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in-fast {
+  from { opacity: 0; } to { opacity: 1; }
+}
+@keyframes slide-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes slide-left {
+  from { opacity: 0; transform: translateX(-24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes pulse-glow-red {
+  0%, 100% { box-shadow: 0 0 0 0 var(--critical-glow); }
+  50%       { box-shadow: 0 0 16px 4px var(--critical-glow); }
+}
+@keyframes pulse-glow-blue {
+  0%, 100% { box-shadow: 0 0 0 0 var(--brand-glow); }
+  50%       { box-shadow: 0 0 16px 4px var(--brand-glow); }
+}
+@keyframes ping-dot {
+  0%   { transform: scale(1);   opacity: 0.9; }
+  70%  { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+@keyframes msg-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes bar-fill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+@keyframes number-count {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes border-pulse {
+  0%, 100% { border-color: rgba(239,68,68,0.35); }
+  50%       { border-color: rgba(239,68,68,0.8); }
+}
+
+/* ── Animation Utilities ─────────── */
+.animate-fade-in      { animation: fade-in  0.4s cubic-bezier(.22,1,.36,1) both; }
+.animate-fade-up      { animation: fade-up  0.45s cubic-bezier(.22,1,.36,1) both; }
+.animate-fade-fast    { animation: fade-in-fast 0.2s ease both; }
+.animate-slide-right  { animation: slide-right 0.38s cubic-bezier(.22,1,.36,1) both; }
+.animate-slide-left   { animation: slide-left  0.38s cubic-bezier(.22,1,.36,1) both; }
+.animate-scale-in     { animation: scale-in 0.3s cubic-bezier(.34,1.56,.64,1) both; }
+.animate-msg-pop      { animation: msg-pop 0.28s cubic-bezier(.22,1,.36,1) both; }
+.animate-spin         { animation: spin 0.8s linear infinite; }
+.animate-bar-fill     { animation: bar-fill 0.6s cubic-bezier(.22,1,.36,1) both; transform-origin: left; }
+.pulse-red            { animation: pulse-glow-red 2s ease-in-out infinite; }
+.pulse-blue           { animation: pulse-glow-blue 2.5s ease-in-out infinite; }
+.border-pulse-red     { animation: border-pulse 2s ease-in-out infinite; }
+
+/* Stagger delays */
+.delay-0  { animation-delay: 0ms; }
+.delay-1  { animation-delay: 60ms; }
+.delay-2  { animation-delay: 120ms; }
+.delay-3  { animation-delay: 180ms; }
+.delay-4  { animation-delay: 240ms; }
+.delay-5  { animation-delay: 300ms; }
+.delay-6  { animation-delay: 360ms; }
+
+/* ── Glass Surfaces ──────────────── */
+.glass {
+  background: rgba(15, 22, 35, 0.72);
+  backdrop-filter: blur(18px) saturate(1.6);
+  -webkit-backdrop-filter: blur(18px) saturate(1.6);
+  border: 1px solid var(--border);
+}
+.glass-bright {
+  background: rgba(22, 32, 47, 0.85);
+  backdrop-filter: blur(22px) saturate(1.8);
+  -webkit-backdrop-filter: blur(22px) saturate(1.8);
+  border: 1px solid var(--border-bright);
+}
+
+/* ── Skeleton ────────────────────── */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.07) 50%,
+    rgba(255,255,255,0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
+  border-radius: 8px;
+}
+
+/* ── Dot ping ─────────────────────── */
+.ping-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: inherit;
+  animation: ping-dot 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
 }
