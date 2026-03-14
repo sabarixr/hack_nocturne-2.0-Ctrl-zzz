@@ -9,7 +9,6 @@ import 'package:expresto/pages/call_history.dart';
 import 'package:expresto/pages/practice.dart';
 import 'package:expresto/pages/live_call.dart';
 import 'package:expresto/widgets/home/feature_tile.dart';
-import 'package:expresto/widgets/home/stat_row.dart';
 import 'package:flutter/material.dart';
 
 class HomePage extends StatefulWidget {
@@ -98,44 +97,6 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
               const SizedBox(height: 22),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  color: data.profileStatusBackground,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: data.profileStatusColor.withValues(alpha: 0.25),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: data.profileStatusColor,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        data.profileStatus,
-                        style: TextStyle(
-                          color: data.profileStatusColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
               AnimatedBuilder(
                 animation: _glowController,
                 builder: (context, child) {
@@ -270,13 +231,6 @@ class _HomePageState extends State<HomePage>
                 },
               ),
               const SizedBox(height: 22),
-              ...List.generate(
-                data.stats.length,
-                (index) => StatRow(
-                  stat: data.stats[index],
-                  isLast: index == data.stats.length - 1,
-                ),
-              ),
             ],
           ),
         ),

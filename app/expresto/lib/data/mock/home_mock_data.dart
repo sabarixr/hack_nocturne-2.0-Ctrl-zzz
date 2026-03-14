@@ -5,9 +5,6 @@ import 'package:flutter/material.dart';
 const HomeDashboardData homeMockData = HomeDashboardData(
   appTitle: 'EXPRESTO',
   userName: 'Adrija',
-  profileStatus: 'Profile 92% calibrated - ready',
-  profileStatusColor: AppColors.success,
-  profileStatusBackground: AppColors.successBg,
   heroTag: 'EMERGENCY',
   heroTitle: 'SOS Call',
   heroDescription:
@@ -42,11 +39,5 @@ const HomeDashboardData homeMockData = HomeDashboardData(
       accent: AppColors.blue,
       routeKey: 'bystander',
     ),
-  ],
-  stats: <HomeStat>[
-    HomeStat(label: 'Emergency contacts', value: '3 added'),
-    HomeStat(label: 'Last practice', value: '2 days ago'),
-    HomeStat(label: 'Profile accuracy', value: '92%', highlight: true),
-    HomeStat(label: 'Signs learned', value: '38/60'),
   ],
 );

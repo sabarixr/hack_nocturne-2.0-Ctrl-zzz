@@ -4,28 +4,31 @@ class HomeDashboardData {
   const HomeDashboardData({
     required this.appTitle,
     required this.userName,
-    required this.profileStatus,
-    required this.profileStatusColor,
-    required this.profileStatusBackground,
     required this.heroTag,
     required this.heroTitle,
     required this.heroDescription,
     required this.heroButtonLabel,
     required this.quickActions,
-    required this.stats,
+    // Legacy fields — kept for source-compatibility but no longer rendered.
+    this.profileStatus,
+    this.profileStatusColor,
+    this.profileStatusBackground,
+    this.stats,
   });
 
   final String appTitle;
   final String userName;
-  final String profileStatus;
-  final Color profileStatusColor;
-  final Color profileStatusBackground;
   final String heroTag;
   final String heroTitle;
   final String heroDescription;
   final String heroButtonLabel;
   final List<HomeQuickAction> quickActions;
-  final List<HomeStat> stats;
+
+  // Deprecated — not displayed anywhere.
+  final String? profileStatus;
+  final Color? profileStatusColor;
+  final Color? profileStatusBackground;
+  final List<HomeStat>? stats;
 }
 
 class HomeQuickAction {
