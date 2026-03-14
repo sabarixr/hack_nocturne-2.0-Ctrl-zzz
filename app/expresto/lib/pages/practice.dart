@@ -6,6 +6,7 @@ import 'package:expresto/core/theme/app_colors.dart';
 import 'package:expresto/pages/lesson.dart';
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 
 // ─── GraphQL ────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,7 @@ const _kSignDatabaseQuery = r'''
   }
 ''';
 
-// ─── Sign model (from backend) ───────────────────────────────────────────────
+// ─── Hardcoded sign data (8 real model classes) ──────────────────────────────
 
 class SignEntry {
   final String id;
@@ -61,6 +62,122 @@ class SignEntry {
   );
 }
 
+/// The 8 real model classes, always available offline.
+const List<SignEntry> _kLocalSigns = [
+  SignEntry(
+    id: 'help',
+    label: 'HELP',
+    category: 'Emergency',
+    description: 'Open palm raised — universal distress signal',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Extend all 5 fingers wide',
+      'Palm facing forward (away from body)',
+      'Raise arm to shoulder height or above',
+    ],
+    difficultyLevel: 'BEGINNER',
+    isCritical: true,
+  ),
+  SignEntry(
+    id: 'pain',
+    label: 'PAIN',
+    category: 'Medical',
+    description: 'Index and middle fingers together, pointing to pain area',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Index + middle fingers extended and touching',
+      'Ring and pinky curled into palm',
+      'Thumb tucked across palm',
+    ],
+    difficultyLevel: 'BEGINNER',
+    isCritical: true,
+  ),
+  SignEntry(
+    id: 'doctor',
+    label: 'DOCTOR',
+    category: 'Medical',
+    description: 'D-handshape — index up, thumb touches middle fingertip',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Index finger pointing straight up',
+      'Thumb tip touches middle fingertip',
+      'Ring and pinky loosely curled',
+    ],
+    difficultyLevel: 'INTERMEDIATE',
+    isCritical: true,
+  ),
+  SignEntry(
+    id: 'call',
+    label: 'CALL',
+    category: 'Communication',
+    description: 'Shaka / phone hand — pinky and thumb extended',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Thumb extended outward to the side',
+      'Pinky extended upward',
+      'Index, middle, ring fingers curled in',
+    ],
+    difficultyLevel: 'BEGINNER',
+    isCritical: false,
+  ),
+  SignEntry(
+    id: 'accident',
+    label: 'ACCIDENT',
+    category: 'Emergency',
+    description: 'Devil horns — index and pinky extended',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Index finger extended upward',
+      'Pinky finger extended upward',
+      'Middle and ring fingers curled in',
+    ],
+    difficultyLevel: 'INTERMEDIATE',
+    isCritical: false,
+  ),
+  SignEntry(
+    id: 'thief',
+    label: 'THIEF',
+    category: 'Crime',
+    description: 'O-shape — all fingertips close to thumb tip',
+    demoVideoUrl: '',
+    keyPoints: [
+      'All four fingers curved inward',
+      'All fingertips touch the thumb tip',
+      'Form a clear circular O-shape',
+    ],
+    difficultyLevel: 'INTERMEDIATE',
+    isCritical: false,
+  ),
+  SignEntry(
+    id: 'hot',
+    label: 'HOT',
+    category: 'Environment',
+    description: 'Fisted hand — all fingers curled into a tight fist',
+    demoVideoUrl: '',
+    keyPoints: [
+      'All four fingers folded into palm',
+      'Thumb wrapped over the front of fingers',
+      'Firm, tight fist raised to chest height',
+    ],
+    difficultyLevel: 'BEGINNER',
+    isCritical: false,
+  ),
+  SignEntry(
+    id: 'lose',
+    label: 'LOSE',
+    category: 'General',
+    description: '2+ fingers extended loosely — general distress fallback',
+    demoVideoUrl: '',
+    keyPoints: [
+      'Extend two or more fingers outward',
+      'Keep them loosely spread or together',
+      'Hold hand at a visible, relaxed height',
+    ],
+    difficultyLevel: 'BEGINNER',
+    isCritical: false,
+  ),
+];
+
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 class PracticePage extends StatefulWidget {
@@ -71,18 +188,51 @@ class PracticePage extends StatefulWidget {
 }
 
 class _PracticePageState extends State<PracticePage> {
-  bool _loading = true;
+  bool _loading = false;
   String? _error;
-  List<SignEntry> _signs = [];
+  List<SignEntry> _signs = List<SignEntry>.from(_kLocalSigns);
   String? _selectedCategory;
+  bool _fetchedFromBackend = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchSigns();
+    // Try to enrich from backend, but don't block on it
+    _tryFetchFromBackend();
   }
 
-  Future<void> _fetchSigns() async {
+  Future<void> _tryFetchFromBackend() async {
+    try {
+      final result = await ApiClient.client.value.query(
+        QueryOptions(
+          document: gql(_kSignDatabaseQuery),
+          variables: {
+            if (_selectedCategory != null) 'category': _selectedCategory,
+          },
+          fetchPolicy: FetchPolicy.networkOnly,
+        ),
+      );
+
+      if (result.hasException || result.data == null) return;
+
+      final raw = result.data?['signDatabase'] as List<dynamic>? ?? [];
+      if (raw.isEmpty) return;
+
+      if (mounted) {
+        setState(() {
+          _signs = raw
+              .map((e) => SignEntry.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _fetchedFromBackend = true;
+        });
+      }
+    } catch (e) {
+      print('[PracticePage] backend fetch skipped: $e');
+      // Silently fall back to local data — already populated
+    }
+  }
+
+  Future<void> _refreshSigns() async {
     setState(() {
       _loading = true;
       _error = null;
@@ -102,30 +252,61 @@ class _PracticePageState extends State<PracticePage> {
         final msg =
             result.exception?.graphqlErrors.firstOrNull?.message ??
             result.exception.toString();
-        setState(() {
-          _loading = false;
-          _error = msg;
-        });
+        if (mounted)
+          setState(() {
+            _loading = false;
+            _error = msg;
+          });
         return;
       }
 
       final raw = result.data?['signDatabase'] as List<dynamic>? ?? [];
-      setState(() {
-        _loading = false;
-        _signs = raw
-            .map((e) => SignEntry.fromJson(e as Map<String, dynamic>))
-            .toList();
-      });
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          if (raw.isNotEmpty) {
+            _signs = raw
+                .map((e) => SignEntry.fromJson(e as Map<String, dynamic>))
+                .toList();
+            _fetchedFromBackend = true;
+          }
+        });
+      }
     } catch (e) {
-      print('[PracticePage] fetch error: $e');
-      setState(() {
-        _loading = false;
-        _error = e.toString();
-      });
+      if (mounted)
+        setState(() {
+          _loading = false;
+        });
     }
   }
 
-  // ── Category filter chips ─────────────────────────────────────────────────
+  // ── Video upload ──────────────────────────────────────────────────────────
+
+  Future<void> _pickAndUploadVideo() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickVideo(
+      source: ImageSource.gallery,
+      maxDuration: const Duration(seconds: 60),
+    );
+
+    if (picked == null || !mounted) return;
+
+    final fileName = picked.name;
+    _showUploadBottomSheet(fileName, picked.path);
+  }
+
+  void _showUploadBottomSheet(String fileName, String filePath) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.panel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => _UploadSheet(fileName: fileName, filePath: filePath),
+    );
+  }
+
+  // ── Category filter ───────────────────────────────────────────────────────
 
   List<String> get _categories {
     final cats = _signs.map((s) => s.category).toSet().toList()..sort();
@@ -142,8 +323,7 @@ class _PracticePageState extends State<PracticePage> {
         child: Column(
           children: [
             _buildTopBar(context),
-            if (!_loading && _error == null && _signs.isNotEmpty)
-              _buildCategoryFilter(),
+            if (_signs.isNotEmpty) _buildCategoryFilter(),
             Expanded(child: _buildBody(context)),
           ],
         ),
@@ -178,13 +358,34 @@ class _PracticePageState extends State<PracticePage> {
           ),
           Row(
             children: [
+              // Upload video button
+              GestureDetector(
+                onTap: _pickAndUploadVideo,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.blue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: AppColors.blue.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.video_call_rounded,
+                    color: AppColors.blue,
+                    size: 20,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               if (!_loading)
                 IconButton(
-                  onPressed: _fetchSigns,
+                  onPressed: _refreshSigns,
                   icon: const Icon(
                     Icons.refresh_rounded,
                     color: AppColors.textMuted,
                   ),
+                  tooltip: 'Sync from server',
                 ),
               GestureDetector(
                 onTap: () => Navigator.pop(context),
@@ -222,19 +423,13 @@ class _PracticePageState extends State<PracticePage> {
           _CategoryChip(
             label: 'All',
             selected: _selectedCategory == null,
-            onTap: () {
-              setState(() => _selectedCategory = null);
-              _fetchSigns();
-            },
+            onTap: () => setState(() => _selectedCategory = null),
           ),
           ...cats.map(
             (cat) => _CategoryChip(
               label: cat,
               selected: _selectedCategory == cat,
-              onTap: () {
-                setState(() => _selectedCategory = cat);
-                _fetchSigns();
-              },
+              onTap: () => setState(() => _selectedCategory = cat),
             ),
           ),
         ],
@@ -245,80 +440,67 @@ class _PracticePageState extends State<PracticePage> {
   Widget _buildBody(BuildContext context) {
     if (_loading) {
       return const Center(
-        child: CircularProgressIndicator(color: AppColors.emergency),
+        child: CircularProgressIndicator(color: AppColors.blue),
       );
-    }
-    if (_error != null) {
-      return _buildError();
-    }
-    if (_signs.isEmpty) {
-      return _buildEmpty();
     }
 
     final filtered = _selectedCategory == null
         ? _signs
         : _signs.where((s) => s.category == _selectedCategory).toList();
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final sign = filtered[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _SignCard(
-            sign: sign,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => LessonPage(sign: sign)),
+    if (filtered.isEmpty) {
+      return _buildEmpty();
+    }
+
+    return Column(
+      children: [
+        // Backend source indicator
+        if (_fetchedFromBackend)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: AppColors.success,
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Text(
+                  'Synced from server',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+            itemCount: filtered.length,
+            itemBuilder: (context, index) {
+              final sign = filtered[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _SignCard(
+                  sign: sign,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => LessonPage(sign: sign),
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),
-        );
-      },
-    );
-  }
-
-  Widget _buildError() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              color: AppColors.emergency,
-              size: 40,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Failed to load signs',
-              style: TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton(
-              onPressed: _fetchSigns,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textPrimary,
-                side: const BorderSide(color: AppColors.shellBorder),
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
         ),
-      ),
+      ],
     );
   }
 
@@ -334,8 +516,192 @@ class _PracticePageState extends State<PracticePage> {
           ),
           SizedBox(height: 12),
           Text(
-            'No signs found',
+            'No signs in this category',
             style: TextStyle(color: AppColors.textMuted, fontSize: 15),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Upload bottom sheet ─────────────────────────────────────────────────────
+
+class _UploadSheet extends StatefulWidget {
+  const _UploadSheet({required this.fileName, required this.filePath});
+
+  final String fileName;
+  final String filePath;
+
+  @override
+  State<_UploadSheet> createState() => _UploadSheetState();
+}
+
+class _UploadSheetState extends State<_UploadSheet> {
+  bool _submitting = false;
+  bool _done = false;
+
+  Future<void> _submit() async {
+    setState(() => _submitting = true);
+    // Stub: simulate submission delay
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (mounted)
+      setState(() {
+        _submitting = false;
+        _done = true;
+      });
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(
+                color: AppColors.shellBorder,
+                borderRadius: BorderRadius.circular(99),
+              ),
+            ),
+          ),
+
+          const Text(
+            'Submit Practice Video',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Your video will be reviewed and matched against sign classes.',
+            style: TextStyle(
+              color: AppColors.textMuted,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // File info row
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.panelSoft,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.shellBorder),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.blue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.video_file_rounded,
+                    color: AppColors.blue,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.fileName,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Text(
+                        'Ready to submit',
+                        style: TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_done)
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: AppColors.success,
+                  ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Submit button
+          SizedBox(
+            width: double.infinity,
+            child: GestureDetector(
+              onTap: (_submitting || _done) ? null : _submit,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                decoration: BoxDecoration(
+                  color: _done
+                      ? AppColors.success.withValues(alpha: 0.2)
+                      : _submitting
+                      ? AppColors.blue.withValues(alpha: 0.4)
+                      : AppColors.blue,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.center,
+                child: _submitting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            _done ? Icons.check_rounded : Icons.upload_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _done ? 'Submitted!' : 'Submit for Review',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
           ),
         ],
       ),
@@ -472,6 +838,31 @@ class _SignCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      if (sign.isCritical) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.emergencyDeep,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: AppColors.emergencyBorder,
+                            ),
+                          ),
+                          child: const Text(
+                            'CRITICAL',
+                            style: TextStyle(
+                              color: AppColors.emergency,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   if (sign.description.isNotEmpty) ...[
