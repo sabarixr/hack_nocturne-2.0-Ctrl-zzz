@@ -170,12 +170,15 @@ export default function CallHandlingPage({
     variables: { callId: id },
     pollInterval: 5000,
     skip: !token,
-    onCompleted: (fetchedData) => {
-      if (fetchedData?.operatorMessages) {
-        setMessages((prev) => (prev.length === 0 ? fetchedData.operatorMessages : prev));
-      }
-    },
   });
+
+  // Seed the messages list from the initial query result (only once).
+  useEffect(() => {
+    if (data?.operatorMessages && messages.length === 0) {
+      setMessages(data.operatorMessages);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   useSubscription(CALL_SUB, { variables: { callId: id }, skip: !token });
 
