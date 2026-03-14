@@ -25,7 +25,7 @@ async def get_gemini_suggestion(
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
         context = (
             f"Emergency type: {emergency_type}. "
