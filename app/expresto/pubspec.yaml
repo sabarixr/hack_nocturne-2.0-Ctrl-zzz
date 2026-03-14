@@ -37,6 +37,24 @@ dependencies:
   camera: ^0.12.0
   image_picker: ^1.1.2
 
+  # ML Kit — on-device face detection (FaceMesh 478 landmarks → emotion geometry)
+  google_mlkit_face_mesh_detection: ^0.3.0
+
+  # TFLite inference for both emotion model and sign language model
+  tflite_flutter: ^0.12.1
+
+  # GraphQL
+  graphql_flutter: ^5.2.0-beta.7
+
+  # Persistence for calibration profile
+  shared_preferences: ^2.3.5
+
+  # Haptic vibration patterns for silent emergency mode
+  vibration: ^2.0.0
+
+  # Video player for lessons / sign demonstrations
+  video_player: ^2.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -59,10 +77,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # ML model assets
+  assets:
+    - assets/models/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
