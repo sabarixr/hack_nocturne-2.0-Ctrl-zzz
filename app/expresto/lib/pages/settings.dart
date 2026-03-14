@@ -1,8 +1,12 @@
+import 'package:expresto/core/api_client.dart';
 import 'package:expresto/core/theme/app_colors.dart';
 import 'package:expresto/data/mock/settings_mock_data.dart';
 import 'package:expresto/models/settings_data.dart';
 import 'package:expresto/pages/calibration.dart';
+import 'package:expresto/pages/contacts.dart';
+import 'package:expresto/pages/home.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -22,7 +26,6 @@ class _SettingsPageState extends State<SettingsPage> {
   String userSubtitle = '';
   int profileAccuracy = 0;
   String lastCalibrated = '';
-  List<EmergencyContact> emergencyContacts = [];
   String panicSensitivity = 'Medium';
   String signLanguage = 'Sign Language';
   String signLanguageSubtitle = 'Indian Sign Language';
@@ -44,7 +47,6 @@ class _SettingsPageState extends State<SettingsPage> {
     userSubtitle = data.userSubtitle;
     profileAccuracy = data.profileAccuracy;
     lastCalibrated = data.lastCalibrated;
-    emergencyContacts = List.from(data.emergencyContacts);
     panicSensitivity = data.panicSensitivity;
     signLanguage = data.signLanguage;
     signLanguageSubtitle = data.signLanguageSubtitle;
@@ -61,7 +63,7 @@ class _SettingsPageState extends State<SettingsPage> {
       userSubtitle: userSubtitle,
       profileAccuracy: profileAccuracy,
       lastCalibrated: lastCalibrated,
-      emergencyContacts: emergencyContacts,
+      emergencyContacts: const [],
       emergencyThreshold: thresholdValue,
       panicSensitivity: panicSensitivity,
       alertsEnabled: alertsEnabled,
@@ -234,80 +236,53 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildEmergencyContactsCard(SettingsData data) {
-    final contacts = data.emergencyContacts;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.panel,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.shellBorder),
+  Widget _buildEmergencyContactsCard() {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const EmergencyContactsPage()),
       ),
-      child: Column(
-        children: [
-          if (contacts.isNotEmpty)
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 260),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: contacts.length,
-                physics: contacts.length > 3
-                    ? const ClampingScrollPhysics()
-                    : const NeverScrollableScrollPhysics(),
-                separatorBuilder: (context, index) =>
-                    Divider(color: AppColors.shellBorder, height: 1),
-                itemBuilder: (context, index) {
-                  final contact = contacts[index];
-                  return _buildListTile(
-                    icon: contact.icon,
-                    iconBg: contact.iconBgColor,
-                    title: contact.name,
-                    subtitle: contact.phone,
-                    trailingText: '>',
-                  );
-                },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.panel,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.shellBorder),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.emergency.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: const Icon(
+                Icons.contacts_outlined,
+                color: AppColors.emergency,
+                size: 20,
               ),
             ),
-          if (contacts.isNotEmpty)
-            Divider(color: AppColors.shellBorder, height: 1),
-          GestureDetector(
-            onTap: _showAddContactSheet,
-            behavior: HitTestBehavior.opaque,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.blue.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      '+ Add',
-                      style: TextStyle(
-                        color: AppColors.blue,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  const Text(
-                    'Add Contact',
-                    style: TextStyle(
-                      color: AppColors.blue,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Text(
+                'Manage Emergency Contacts',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
-        ],
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: AppColors.textMuted,
+              size: 14,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -504,16 +479,73 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget _buildBottomButtons() {
     return Row(
       children: [
-        Expanded(child: _buildOutlineBtn('Privacy')),
+        Expanded(child: _buildOutlineBtn('Privacy', onTap: () {})),
         const SizedBox(width: 12),
-        Expanded(child: _buildOutlineBtn('Log Out')),
+        Expanded(
+          child: _buildOutlineBtn(
+            'Log Out',
+            color: AppColors.emergency,
+            onTap: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  backgroundColor: AppColors.panel,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: const Text(
+                    'Log Out',
+                    style: TextStyle(color: AppColors.textPrimary),
+                  ),
+                  content: const Text(
+                    'Are you sure you want to log out?',
+                    style: TextStyle(color: AppColors.textMuted),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        'Log Out',
+                        style: TextStyle(
+                          color: AppColors.emergency,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && mounted) {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.remove('auth_token');
+                ApiClient.authToken = null;
+                if (!mounted) return;
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const HomePage()),
+                  (route) => false,
+                );
+              }
+            },
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildOutlineBtn(String text) {
+  Widget _buildOutlineBtn(
+    String text, {
+    Color? color,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
-      onTap: () {},
+      onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
@@ -524,8 +556,8 @@ class _SettingsPageState extends State<SettingsPage> {
         alignment: Alignment.center,
         child: Text(
           text,
-          style: const TextStyle(
-            color: AppColors.textMuted,
+          style: TextStyle(
+            color: color ?? AppColors.textMuted,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -722,113 +754,6 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ],
-        );
-      },
-    );
-  }
-
-  void _showAddContactSheet() {
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.panel,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Add Emergency Contact',
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Name',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.shellBorder),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.blue),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                style: const TextStyle(color: AppColors.textPrimary),
-                decoration: const InputDecoration(
-                  labelText: 'Phone Number',
-                  labelStyle: TextStyle(color: AppColors.textMuted),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.shellBorder),
-                  ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: AppColors.blue),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  onPressed: () {
-                    if (nameController.text.isNotEmpty &&
-                        phoneController.text.isNotEmpty) {
-                      setState(() {
-                        emergencyContacts.add(
-                          EmergencyContact(
-                            icon: Icons.contact_phone_outlined,
-                            name: nameController.text,
-                            phone: phoneController.text,
-                            iconBgColor: AppColors.success.withValues(
-                              alpha: 0.15,
-                            ),
-                          ),
-                        );
-                      });
-                      Navigator.pop(context);
-                    }
-                  },
-                  child: const Text(
-                    'Save Contact',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-            ],
-          ),
         );
       },
     );
