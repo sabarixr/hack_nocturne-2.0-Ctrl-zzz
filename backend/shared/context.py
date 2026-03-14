@@ -1,10 +1,37 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from strawberry.channels import GraphQLWSConsumer
 
 from apps.users.services import extract_token_payload
+
+
+@dataclass
+class WSContext:
+    """Context object for WebSocket connections.
+
+    Mirrors the attribute-access API of StrawberryDjangoContext so that
+    permission classes like IsAuthenticated (which do info.context.request.user_id)
+    work identically for both HTTP and WS.
+    """
+
+    request: Any  # _WSRequest — has .user_id and .is_operator
+    ws: Any       # the ChannelsWSConsumer instance
+    user_id: Any = None
+    is_operator: bool = False
+    connection_params: Any = None
+
+    # Allow dict-style access: info.context["ws"], info.context["request"], etc.
+    def __getitem__(self, key: str) -> Any:
+        return getattr(self, key)
+
+    def __setitem__(self, key: str, value: Any) -> None:
+        setattr(self, key, value)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return getattr(self, key, default)
 
 
 class AuthenticatedGraphqlWsConsumer(GraphQLWSConsumer):
@@ -14,31 +41,33 @@ class AuthenticatedGraphqlWsConsumer(GraphQLWSConsumer):
         {"type": "connection_init", "payload": {"Authorization": "Bearer <token>"}}
     """
 
-    async def on_ws_connect(self, data: dict[str, Any]) -> Any:
-        payload: dict[str, Any] = data or {}
-        auth: str = payload.get("Authorization", "") or payload.get("authorization", "")
+    async def get_context(self, request: Any, connection_params: Any) -> WSContext:
+        # connection_params is the dict from the connection_init payload.
+        # It contains {"Authorization": "Bearer <token>"}.
+        params: dict[str, Any] = connection_params or {}
+        auth: str = params.get("Authorization", "") or params.get("authorization", "")
 
         class _FakeRequest:
-            headers = {"Authorization": auth, "authorization": auth}
+            pass
 
-        user_id, is_operator = extract_token_payload(_FakeRequest())
-        self.scope["user_id"] = user_id
-        self.scope["is_operator"] = is_operator
-        return await super().on_ws_connect(data)
+        fake = _FakeRequest()
+        fake.headers = {"Authorization": auth, "authorization": auth}  # type: ignore[attr-defined]
 
-    async def get_context(self, *args: Any, **kwargs: Any) -> Any:
-        ctx = await super().get_context(*args, **kwargs)
-        # ctx is a dict for Strawberry Channels; inject auth attributes
-        ctx["user_id"] = self.scope.get("user_id")
-        ctx["is_operator"] = self.scope.get("is_operator", False)
+        user_id, is_operator = extract_token_payload(fake)
 
-        # Attach a lightweight request-like object so HTTP permission classes
+        # Build a lightweight request-like object so HTTP permission classes
         # (IsAuthenticated, IsOperator) work unchanged for WS subscriptions.
         class _WSRequest:
             pass
 
         req = _WSRequest()
-        req.user_id = ctx["user_id"]  # type: ignore[attr-defined]
-        req.is_operator = ctx["is_operator"]  # type: ignore[attr-defined]
-        ctx["request"] = req
-        return ctx
+        req.user_id = user_id  # type: ignore[attr-defined]
+        req.is_operator = is_operator  # type: ignore[attr-defined]
+
+        return WSContext(
+            request=req,
+            ws=self,
+            user_id=user_id,
+            is_operator=is_operator,
+            connection_params=params,
+        )

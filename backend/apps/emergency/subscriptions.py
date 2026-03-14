@@ -9,8 +9,6 @@ from strawberry.types import Info
 from shared.auth import IsAuthenticated
 from shared.redis_layer import (
     bystander_group,
-    channel_group_add,
-    channel_group_discard,
     emergency_group,
     frame_ml_group,
     operator_message_group,
@@ -74,11 +72,8 @@ class EmergencySubscription:
     ) -> AsyncGenerator[CallUpdateEvent, None]:
         ws = info.context["ws"]
         group = emergency_group(str(call_id))
-        await channel_group_add(group, ws.channel_name)
-        try:
-            async for message in ws.channel_receive():
-                if message.get("type") != "call.update":
-                    continue
+        async with ws.listen_to_channel(type="call.update", groups=[group]) as messages:
+            async for message in messages:
                 yield CallUpdateEvent(
                     call_id=message["call_id"],
                     status=message["status"],
@@ -86,8 +81,6 @@ class EmergencySubscription:
                     emergency_type=message["emergency_type"],
                     updated_at=datetime.datetime.fromisoformat(message["updated_at"]),
                 )
-        finally:
-            await channel_group_discard(group, ws.channel_name)
 
     @strawberry.subscription(permission_classes=[IsAuthenticated])
     async def operator_message_received(
@@ -97,21 +90,19 @@ class EmergencySubscription:
     ) -> AsyncGenerator[OperatorMessageEvent, None]:
         ws = info.context["ws"]
         group = operator_message_group(str(call_id))
-        await channel_group_add(group, ws.channel_name)
-        try:
-            async for message in ws.channel_receive():
-                if message.get("type") != "operator.message":
-                    continue
+        async with ws.listen_to_channel(type="operator.message", groups=[group]) as messages:
+            async for message in messages:
                 yield OperatorMessageEvent(
                     message_id=message["message_id"],
                     call_id=message["call_id"],
                     text=message["text"],
                     gloss_sequence=message["gloss_sequence"],
                     sent_at=datetime.datetime.fromisoformat(message["sent_at"]),
-                    sender=message.get("sender", "user" if message["text"].startswith("[USER]") else "operator"),
+                    sender=message.get(
+                        "sender",
+                        "user" if message["text"].startswith("[USER]") else "operator",
+                    ),
                 )
-        finally:
-            await channel_group_discard(group, ws.channel_name)
 
     @strawberry.subscription(permission_classes=[IsAuthenticated])
     async def bystander_message_stream(
@@ -121,19 +112,14 @@ class EmergencySubscription:
     ) -> AsyncGenerator[BystanderMessageEvent, None]:
         ws = info.context["ws"]
         group = bystander_group(str(session_id))
-        await channel_group_add(group, ws.channel_name)
-        try:
-            async for message in ws.channel_receive():
-                if message.get("type") != "bystander.message":
-                    continue
+        async with ws.listen_to_channel(type="bystander.message", groups=[group]) as messages:
+            async for message in messages:
                 yield BystanderMessageEvent(
                     session_id=message["session_id"],
                     sender=message["sender"],
                     text=message["text"],
                     sent_at=datetime.datetime.fromisoformat(message["sent_at"]),
                 )
-        finally:
-            await channel_group_discard(group, ws.channel_name)
 
     @strawberry.subscription(permission_classes=[IsAuthenticated])
     async def frame_ml_stream(
@@ -141,20 +127,11 @@ class EmergencySubscription:
         info: Info,
         call_id: strawberry.ID,
     ) -> AsyncGenerator[FrameMLEvent, None]:
-        """Subscribe to real-time ML results for a call.
-
-        The server pushes a FrameMLEvent every time a frame is processed by
-        the MediaPipe pipeline, allowing the Flutter client to receive urgency
-        scores and detection results as a continuous stream rather than waiting
-        for individual mutation responses.
-        """
+        """Subscribe to real-time ML results for a call."""
         ws = info.context["ws"]
         group = frame_ml_group(str(call_id))
-        await channel_group_add(group, ws.channel_name)
-        try:
-            async for message in ws.channel_receive():
-                if message.get("type") != "frame.ml":
-                    continue
+        async with ws.listen_to_channel(type="frame.ml", groups=[group]) as messages:
+            async for message in messages:
                 yield FrameMLEvent(
                     call_id=message["call_id"],
                     recognized_signs=message["recognized_signs"],
@@ -172,6 +149,3 @@ class EmergencySubscription:
                     tremor_level=message["tremor_level"],
                     urgency_score=message["urgency_score"],
                 )
-        finally:
-            await channel_group_discard(group, ws.channel_name)
-
