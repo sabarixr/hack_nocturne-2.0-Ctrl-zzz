@@ -1,6 +1,7 @@
 import 'package:expresto/core/api_client.dart';
 import 'package:expresto/core/theme/app_colors.dart';
 import 'package:expresto/models/call_history_data.dart';
+import 'package:expresto/widgets/signkit_avatar_pip.dart';
 import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 
@@ -378,6 +379,8 @@ class _ViewTranscriptPageState extends State<ViewTranscriptPage> {
   }
 
   Widget _buildOutcomeCard(_ReportData report) {
+    final hasOutcome = report.outcome.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -398,14 +401,22 @@ class _ViewTranscriptPageState extends State<ViewTranscriptPage> {
             ),
           ),
           const SizedBox(height: 12),
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: SignKitAvatarPiP(
+                assetPath: 'signkit-transcript-outcome-avatar',
+                predictedSign: hasOutcome ? report.outcome : null,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
-            report.outcome.isEmpty
-                ? 'No outcome recorded for this call.'
-                : report.outcome,
+            hasOutcome ? report.outcome : 'No outcome recorded for this call.',
             style: TextStyle(
-              color: report.outcome.isEmpty
-                  ? AppColors.textMuted
-                  : AppColors.textPrimary,
+              color: hasOutcome ? AppColors.textPrimary : AppColors.textMuted,
               fontSize: 14,
               height: 1.5,
             ),

@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:expresto/core/api_client.dart';
 import 'package:expresto/core/sign_recognizer.dart';
+import 'package:expresto/widgets/signkit_avatar_pip.dart';
 
 // ---------------------------------------------------------------------------
 // GraphQL strings
@@ -114,6 +115,13 @@ class _EmergencyPageState extends State<EmergencyPage>
   // Debounce: avoid spamming transcript with the same sign every frame
   String _lastLoggedSign = '';
   DateTime _lastSignLogTime = DateTime.fromMillisecondsSinceEpoch(0);
+
+  String? get _latestOperatorMessage {
+    for (final message in _messages.reversed) {
+      if (!message.isUser) return message.text;
+    }
+    return null;
+  }
 
   @override
   void initState() {
@@ -487,6 +495,7 @@ class _EmergencyPageState extends State<EmergencyPage>
                         cameraController: _cameraController,
                         cameraInitialization: _cameraInitialization,
                         cameraError: _cameraError,
+                        avatarMessage: _latestOperatorMessage,
                         callId: _callId,
                         onEndCall: () => Navigator.pop(context),
                         faceDetected: _faceDetected,
@@ -566,6 +575,7 @@ class _CameraPanel extends StatelessWidget {
     required this.cameraController,
     required this.cameraInitialization,
     required this.cameraError,
+    required this.avatarMessage,
     required this.callId,
     required this.onEndCall,
     required this.faceDetected,
@@ -579,6 +589,7 @@ class _CameraPanel extends StatelessWidget {
   final CameraController? cameraController;
   final Future<void>? cameraInitialization;
   final String? cameraError;
+  final String? avatarMessage;
   final String? callId;
   final VoidCallback onEndCall;
   final bool faceDetected;
@@ -675,11 +686,11 @@ class _CameraPanel extends StatelessWidget {
             ),
           ),
           // avatar
-          const Align(
+          Align(
             alignment: Alignment.centerRight,
             child: Padding(
               padding: EdgeInsets.only(right: 12),
-              child: _AvatarPreview(),
+              child: _AvatarPreview(message: avatarMessage),
             ),
           ),
           // detection badges
@@ -1278,23 +1289,20 @@ class _TranscriptPanel extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _AvatarPreview extends StatelessWidget {
-  const _AvatarPreview();
+  const _AvatarPreview({this.message});
+
+  final String? message;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 72,
       height: 72,
-      decoration: BoxDecoration(
-        color: const Color(0xFF1D1D28).withValues(alpha: 0.92),
+      child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF36354C), width: 2),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.interpreter_mode_rounded,
-          color: AppColors.textPrimary,
-          size: 28,
+        child: SignKitAvatarPiP(
+          assetPath: 'signkit-emergency-avatar',
+          predictedSign: message,
         ),
       ),
     );
