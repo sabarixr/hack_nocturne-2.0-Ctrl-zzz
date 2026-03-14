@@ -666,6 +666,14 @@ class _CameraPanel extends StatelessWidget {
               error: cameraError,
             ),
           ),
+          // avatar — full-panel WebView overlay, transparent bg, touch pass-through
+          if (avatarMessage != null && avatarMessage!.isNotEmpty)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(21),
+              child: IgnorePointer(
+                child: _AvatarPreview(message: avatarMessage),
+              ),
+            ),
           // gradient overlay
           Container(
             decoration: BoxDecoration(
@@ -710,14 +718,6 @@ class _CameraPanel extends StatelessWidget {
                 borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: const Color(0xFF13C86C), width: 2),
               ),
-            ),
-          ),
-          // avatar
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: _AvatarPreview(message: avatarMessage),
             ),
           ),
           // detection badges
@@ -1322,16 +1322,9 @@ class _AvatarPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 72,
-      height: 72,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SignKitAvatarPiP(
-          assetPath: 'signkit-emergency-avatar',
-          predictedSign: message,
-        ),
-      ),
+    return SignKitAvatarPiP(
+      assetPath: 'signkit-emergency-avatar',
+      predictedSign: message,
     );
   }
 }

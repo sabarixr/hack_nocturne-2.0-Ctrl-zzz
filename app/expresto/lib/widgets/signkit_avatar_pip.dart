@@ -83,7 +83,7 @@ class _SignKitAvatarPiPState extends State<SignKitAvatarPiP> {
               width: 100vw !important;
               height: 100vh !important;
               overflow: hidden !important;
-              background: #0b1118 !important;
+              background: transparent !important;
             }
             body * {
               box-sizing: border-box !important;
@@ -103,6 +103,7 @@ class _SignKitAvatarPiPState extends State<SignKitAvatarPiP> {
               height: 100vh !important;
               max-width: none !important;
               flex: 0 0 100% !important;
+              background: transparent !important;
             }
             #canvas canvas {
               width: 100vw !important;
@@ -217,20 +218,6 @@ class _SignKitAvatarPiPState extends State<SignKitAvatarPiP> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _buildWebView(),
-        IgnorePointer(
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF1F62A8), width: 2),
-            ),
-          ),
-        ),
-      ],
-    );
+    return _buildWebView();
   }
 }
-
