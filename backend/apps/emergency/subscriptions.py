@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import datetime
 from typing import AsyncGenerator
 
@@ -40,6 +39,26 @@ class BystanderMessageEvent:
     sender: str
     text: str
     sent_at: datetime.datetime
+
+
+@strawberry.type
+class FrameMLEvent:
+    """Real-time ML result pushed after each frame is processed server-side."""
+    call_id: strawberry.ID
+    recognized_signs: list[str]
+    sign_confidence: float
+    hand_detected: bool
+    face_detected: bool
+    emotion_neutral: float
+    emotion_happy: float
+    emotion_sad: float
+    emotion_surprise: float
+    emotion_afraid: float
+    emotion_disgust: float
+    emotion_angry: float
+    signing_speed: float
+    tremor_level: float
+    urgency_score: float
 
 
 @strawberry.type
@@ -111,3 +130,44 @@ class EmergencySubscription:
                 )
         finally:
             await channel_group_discard(group, ws.channel_name)
+
+    @strawberry.subscription(permission_classes=[IsAuthenticated])
+    async def frame_ml_stream(
+        self,
+        info: Info,
+        call_id: strawberry.ID,
+    ) -> AsyncGenerator[FrameMLEvent, None]:
+        """Subscribe to real-time ML results for a call.
+
+        The server pushes a FrameMLEvent every time a frame is processed by
+        the MediaPipe pipeline, allowing the Flutter client to receive urgency
+        scores and detection results as a continuous stream rather than waiting
+        for individual mutation responses.
+        """
+        ws = info.context["ws"]
+        group = emergency_group(str(call_id))
+        await channel_group_add(group, ws.channel_name)
+        try:
+            async for message in ws.channel_receive():
+                if message.get("type") != "frame.ml":
+                    continue
+                yield FrameMLEvent(
+                    call_id=message["call_id"],
+                    recognized_signs=message["recognized_signs"],
+                    sign_confidence=message["sign_confidence"],
+                    hand_detected=message["hand_detected"],
+                    face_detected=message["face_detected"],
+                    emotion_neutral=message["emotion_neutral"],
+                    emotion_happy=message["emotion_happy"],
+                    emotion_sad=message["emotion_sad"],
+                    emotion_surprise=message["emotion_surprise"],
+                    emotion_afraid=message["emotion_afraid"],
+                    emotion_disgust=message["emotion_disgust"],
+                    emotion_angry=message["emotion_angry"],
+                    signing_speed=message["signing_speed"],
+                    tremor_level=message["tremor_level"],
+                    urgency_score=message["urgency_score"],
+                )
+        finally:
+            await channel_group_discard(group, ws.channel_name)
+
