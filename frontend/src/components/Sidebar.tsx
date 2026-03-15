@@ -14,7 +14,8 @@ import clsx from "clsx";
 
 const NAV = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/practice",  icon: HandMetal,        label: "Sign Practice" },
+  { href: "/history",   icon: Radio,           label: "Call History" },
+  { href: "/practice",  icon: HandMetal,       label: "Sign Practice" },
 ];
 
 export function Sidebar() {

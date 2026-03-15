@@ -100,19 +100,20 @@ export default function DashboardPage() {
 
   if (token === null) return null;
 
-  const calls: Record<string, any>[] = data?.operatorCalls ?? [];
-  const critical   = calls.filter((c) => c.peakUrgencyScore >= 0.75);
-  const elevated   = calls.filter((c) => c.peakUrgencyScore >= 0.5 && c.peakUrgencyScore < 0.75);
-  const unhandled  = calls.filter((c) => !c.hasOperator && c.peakUrgencyScore >= 0.75).length;
-  const aiHandled  = calls.filter((c) => !c.hasOperator && c.peakUrgencyScore < 0.75).length;
+   const allCalls: Record<string, any>[] = data?.operatorCalls ?? [];
+   const unhandledCalls = allCalls.filter(call => !call.hasOperator);
+   const critical   = unhandledCalls.filter((c) => c.peakUrgencyScore >= 0.75);
+   const elevated   = unhandledCalls.filter((c) => c.peakUrgencyScore >= 0.5 && c.peakUrgencyScore < 0.75);
+   const unhandled  = unhandledCalls.filter((c) => c.peakUrgencyScore >= 0.75).length;
+   const aiHandled  = unhandledCalls.filter((c) => c.peakUrgencyScore < 0.75).length;
 
-  // Sort: unhandled critical first, then by urgency desc
-  const sorted = [...calls].sort((a, b) => {
-    const aScore = (!a.hasOperator && a.peakUrgencyScore >= 0.75) ? 1 : 0;
-    const bScore = (!b.hasOperator && b.peakUrgencyScore >= 0.75) ? 1 : 0;
-    if (aScore !== bScore) return bScore - aScore;
-    return b.peakUrgencyScore - a.peakUrgencyScore;
-  });
+   // Sort: unhandled critical first, then by urgency desc
+   const sorted = [...unhandledCalls].sort((a, b) => {
+     const aScore = a.peakUrgencyScore >= 0.75 ? 1 : 0;
+     const bScore = b.peakUrgencyScore >= 0.75 ? 1 : 0;
+     if (aScore !== bScore) return bScore - aScore;
+     return b.peakUrgencyScore - a.peakUrgencyScore;
+   });
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
@@ -147,13 +148,13 @@ export default function DashboardPage() {
 
       <main className="px-8 py-7 max-w-5xl mx-auto">
 
-        {/* ── Stats strip ─────────────────────── */}
-        <div className="grid grid-cols-4 gap-3 mb-8 animate-fade-up">
-          <StatCard icon={<Radio size={14} />}       label="Active Calls"       value={calls.length}   color="var(--brand)"    />
-          <StatCard icon={<AlertTriangle size={14} />} label="Critical Unhandled" value={unhandled}    color="var(--critical)" urgent={unhandled > 0} />
-          <StatCard icon={<TrendingUp size={14} />}  label="Elevated"           value={elevated.length} color="var(--warning)" />
-          <StatCard icon={<Zap size={14} />}         label="AI-Handled"         value={aiHandled}      color="#a855f7" />
-        </div>
+         {/* ── Stats strip ─────────────────────── */}
+         <div className="grid grid-cols-4 gap-3 mb-8 animate-fade-up">
+           <StatCard icon={<Radio size={14} />}       label="Unhandled Calls"    value={unhandledCalls.length} color="var(--brand)"    />
+           <StatCard icon={<AlertTriangle size={14} />} label="Critical Unhandled" value={unhandled}    color="var(--critical)" urgent={unhandled > 0} />
+           <StatCard icon={<TrendingUp size={14} />}  label="Elevated"           value={elevated.length} color="var(--warning)" />
+           <StatCard icon={<Zap size={14} />}         label="AI-Handled"         value={aiHandled}      color="#a855f7" />
+         </div>
 
         {/* ── Alert banner when critical unhandled ── */}
         {unhandled > 0 && (
