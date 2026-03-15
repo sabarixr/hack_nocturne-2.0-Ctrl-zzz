@@ -14,7 +14,7 @@ export function ApolloWrapper({ children }: { children: React.ReactNode }) {
 
   const client = useMemo(() => {
     const httpLink = new HttpLink({
-      uri: "http://localhost:8000/graphql",
+      uri: "http://10.37.6.127:8000/graphql",
     });
 
     const authLink = setContext((_, { headers }) => {
@@ -31,7 +31,7 @@ export function ApolloWrapper({ children }: { children: React.ReactNode }) {
     if (typeof window !== "undefined") {
       const wsLink = new GraphQLWsLink(
         createClient({
-          url: "ws://localhost:8000/graphql",
+          url: "ws://10.37.6.127:8000/graphql",
           connectionParams: {
             Authorization: token ? `Bearer ${token}` : "",
           },
