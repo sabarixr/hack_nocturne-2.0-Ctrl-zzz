@@ -130,7 +130,7 @@ export default function DashboardPage() {
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               {new Date().toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" })}
               &nbsp;·&nbsp;
-              {loading ? "Refreshing…" : `${calls.length} active call${calls.length !== 1 ? "s" : ""}`}
+              {loading ? "Refreshing…" : `${unhandledCalls.length} active call${unhandledCalls.length !== 1 ? "s" : ""}`}
             </p>
           </div>
           <button
@@ -353,11 +353,11 @@ export default function DashboardPage() {
               style={{ background: "var(--surface-1)", border: "1px solid var(--border)" }}
             >
               <p className="section-label mb-4">Urgency Breakdown</p>
-              {[
-                { label: "Critical ≥75%", count: critical.length,             color: "var(--critical)" },
-                { label: "Elevated 50–75%", count: elevated.length,           color: "var(--warning)" },
-                { label: "Monitored <50%", count: calls.length - critical.length - elevated.length, color: "var(--brand)" },
-              ].map(({ label, count, color }) => (
+               {[
+                 { label: "Critical ≥75%", count: critical.length,             color: "var(--critical)" },
+                 { label: "Elevated 50–75%", count: elevated.length,           color: "var(--warning)" },
+                 { label: "Monitored <50%", count: unhandledCalls.length - critical.length - elevated.length, color: "var(--brand)" },
+               ].map(({ label, count, color }) => (
                 <div key={label} className="flex items-center justify-between mb-3 last:mb-0">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
@@ -366,16 +366,16 @@ export default function DashboardPage() {
                   <span className="text-sm font-bold font-mono" style={{ color }}>{count}</span>
                 </div>
               ))}
-              {calls.length > 0 && (
-                <div className="mt-4 h-2 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.05)" }}>
-                  {critical.length > 0 && (
-                    <div className="h-full" style={{ width: `${(critical.length / calls.length) * 100}%`, background: "var(--critical)" }} />
-                  )}
-                  {elevated.length > 0 && (
-                    <div className="h-full" style={{ width: `${(elevated.length / calls.length) * 100}%`, background: "var(--warning)" }} />
-                  )}
-                </div>
-              )}
+               {unhandledCalls.length > 0 && (
+                 <div className="mt-4 h-2 rounded-full overflow-hidden flex" style={{ background: "rgba(255,255,255,0.05)" }}>
+                   {critical.length > 0 && (
+                     <div className="h-full" style={{ width: `${(critical.length / unhandledCalls.length) * 100}%`, background: "var(--critical)" }} />
+                   )}
+                   {elevated.length > 0 && (
+                     <div className="h-full" style={{ width: `${(elevated.length / unhandledCalls.length) * 100}%`, background: "var(--warning)" }} />
+                   )}
+                 </div>
+               )}
             </div>
 
             {/* Recent activity */}
@@ -384,10 +384,10 @@ export default function DashboardPage() {
               style={{ background: "var(--surface-1)", border: "1px solid var(--border)" }}
             >
               <p className="section-label mb-4">Recent Callers</p>
-              {calls.length === 0 ? (
-                <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>No active calls</p>
-              ) : (
-                sorted.slice(0, 4).map((c) => (
+               {unhandledCalls.length === 0 ? (
+                 <p className="text-xs text-center py-4" style={{ color: "var(--text-muted)" }}>No active calls</p>
+               ) : (
+                 sorted.slice(0, 4).map((c) => (
                   <div
                     key={c.id}
                     className="flex items-center gap-3 mb-3 last:mb-0 cursor-pointer"
