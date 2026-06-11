@@ -54,6 +54,9 @@ def extract_token_payload(request: object) -> tuple[str | None, bool]:
     """Returns (user_id, is_operator). is_operator is True when JWT staff=True."""
     headers = getattr(request, "headers", {}) or {}
     auth = headers.get("Authorization", "") or headers.get("authorization", "")
+    if not auth:
+        # Try to get from META for Django
+        auth = getattr(request, "META", {}).get("HTTP_AUTHORIZATION", "")
     if not auth.startswith("Bearer "):
         return None, False
     token = auth[7:]

@@ -86,11 +86,13 @@ class OperatorQuery:
                 longitude=c.longitude,
                 address=c.address,
                 peak_urgency_score=c.peak_urgency_score,
-                started_at=c.started_at,
-                operator_accepted_at=c.operator_accepted_at,
+                started_at=c.started_at.isoformat() if c.started_at else None,
+                operator_accepted_at=c.operator_accepted_at.isoformat() if c.operator_accepted_at else None,
                 caller_name=c.user.name,
                 caller_phone=c.user.phone,
                 has_operator=c.operator_id is not None,
+                ended_at=c.ended_at.isoformat() if c.ended_at else None,
+                outcome=c.outcome,
             )
             for c in calls
         ]
@@ -148,11 +150,13 @@ class OperatorCallView:
     longitude: float | None
     address: str
     peak_urgency_score: float
-    started_at: datetime.datetime
-    operator_accepted_at: datetime.datetime | None
+    started_at: str
+    operator_accepted_at: str | None
     caller_name: str
     caller_phone: str
     has_operator: bool
+    ended_at: str | None = None
+    outcome: str = ""
 
 
 @strawberry.type

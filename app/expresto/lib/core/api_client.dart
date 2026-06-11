@@ -26,14 +26,14 @@ class ApiClient {
   }
 
   static GraphQLClient _buildClient() {
-    final HttpLink httpLink = HttpLink('http://10.37.6.127:8000/graphql');
+    final HttpLink httpLink = HttpLink('http://10.35.189.127:8000/graphql');
 
     final AuthLink authLink = AuthLink(
       getToken: () async => authToken != null ? 'Bearer $authToken' : null,
     );
 
     final WebSocketLink websocketLink = WebSocketLink(
-      'ws://10.37.6.127:8000/graphql',
+      'ws://10.35.189.127:8000/graphql',
       config: SocketClientConfig(
         autoReconnect: true,
         inactivityTimeout: const Duration(seconds: 30),
